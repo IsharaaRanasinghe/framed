@@ -6,6 +6,8 @@ An AI dev workflow for Claude Code that works on **existing codebases first** an
 
 Most AI workflow frameworks start from an empty folder. framed starts from the code you already have: it builds a one-page map of the repo, fixes one bug at a time without breaking what depends on the changed code, and delivers every change as a pull request with real test output in it. For a new project, it starts the app from a design you pick on its local page.
 
+**Learn more:** [isharaaranasinghe.github.io/framed](https://isharaaranasinghe.github.io/framed/) covers how it works, a case study of a real replayed bug, what we observed, and the measured results.
+
 ## What's in it
 
 | Part | What it does |

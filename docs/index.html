@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>framed</title>
+<meta name="description" content="framed is a Claude Code plugin for existing codebases: it maps a repo, fixes one ticket at a time without breaking what depends on the change, and opens a pull request with real test output in it.">
+<meta property="og:title" content="framed: an AI dev workflow for the code you already have">
+<meta property="og:description" content="framed is a Claude Code plugin for existing codebases: it maps a repo, fixes one ticket at a time without breaking what depends on the change, and opens a pull request with real test output in it.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://isharaaranasinghe.github.io/framed/">
+<meta property="og:image" content="https://raw.githubusercontent.com/IsharaaRanasinghe/framed/main/.claude-plugin/icon.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232f6fed' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M3 18c4 0 4-12 9-12s5 12 9 12'/%3E%3Ccircle cx='12' cy='6' r='2.2' fill='%232f6fed'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* base: what the artifact viewer's wrapper used to give the page */
+  :root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+  /* Layout: a sticky contents rail beside one reading column (chips across the top on narrow screens); the fix road's colours carry status everywhere */
+  :root {
+    --bg: #f3f5f8; --surface: #ffffff; --ink: #161a21; --muted: #586172; --line: #d6dbe3;
+    --accent: #2f62d9; --accent-soft: #e4ebfb; --gate: #b97806; --done: #1d8a5f; --bad: #c63d3d; --road: #cfd5de;
+    --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1217; --surface: #171b22; --ink: #e5e8ee; --muted: #9aa3b3; --line: #2b313c;
+      --accent: #7aa0ff; --accent-soft: #1d2740; --gate: #f0b23a; --done: #3cc48e; --bad: #f07070; --road: #2c323d; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1217; --surface: #171b22; --ink: #e5e8ee; --muted: #9aa3b3; --line: #2b313c;
+    --accent: #7aa0ff; --accent-soft: #1d2740; --gate: #f0b23a; --done: #3cc48e; --bad: #f07070; --road: #2c323d; color-scheme: dark;
+  }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 var(--body); }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .shell { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { min-width: 0; max-width: 900px; }
+  .prose { max-width: 68ch; }
+
+  /* contents rail */
+  nav.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 28px); align-self: start; font-size: 14px; }
+  .rail .brand { font: 800 22px/1 var(--display); letter-spacing: -0.02em; margin-bottom: 18px; }
+  .rail .grp { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
+  .rail a { display: block; padding: 5px 10px; margin-left: -10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-weight: 500; border-left: 2px solid transparent; }
+  .rail a:hover { color: var(--ink); }
+  .rail a[aria-current="true"] { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
+  .chips { display: none; }
+
+  h1 { font: 800 clamp(44px, 8vw, 72px)/1 var(--display); letter-spacing: -0.03em; margin: 0 0 16px; }
+  h2 { font: 700 clamp(24px, 3.4vw, 30px)/1.15 var(--display); letter-spacing: -0.01em; margin: 0 0 12px; text-wrap: balance; }
+  h3 { font: 600 17px/1.3 var(--body); margin: 26px 0 8px; }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 20px; line-height: 1.5; }
+  .kicker { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+  code { font: 14px var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  a { color: var(--accent); }
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  blockquote { margin: 22px 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--gate); font: 600 19px/1.45 var(--body); max-width: 60ch; }
+  .spine { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 0; font: 500 14px var(--mono); }
+  .spine span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+  .spine i { color: var(--muted); font-style: normal; }
+  .glance { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 26px 0 0; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .glance b { font-family: var(--mono); font-weight: 500; color: var(--accent); }
+
+  section { margin-top: 72px; scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 24px); }
+  .sec-n { font: 500 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .next { display: inline-flex; gap: 8px; margin-top: 26px; font-size: 14px; color: var(--muted); text-decoration: none; }
+  .next span { color: var(--accent); font-weight: 600; }
+  .next:hover span { text-decoration: underline; }
+
+  figure { margin: 20px 0 0; }
+  .fig { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow-x: auto; }
+  .fig svg { display: block; width: 100%; min-width: 720px; height: auto; }
+  .fig svg.narrow { min-width: 560px; }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; max-width: 80ch; }
+  .d text { fill: var(--ink); font: 13px var(--body); }
+  .d .b { font-weight: 600; }
+  .d .s { fill: var(--muted); font-size: 11.5px; }
+  .d .m { font: 12px var(--mono); }
+  .d .bx { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  .d .bg { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+  .d .grp { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 5; }
+  .d .key { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+  .d .gatebx { fill: var(--surface); stroke: var(--gate); stroke-width: 2; }
+  .d .ln { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+  .d .dash { stroke-dasharray: 4 4; }
+  .d .ah { fill: var(--muted); }
+  .d .road { fill: none; stroke: var(--road); stroke-width: 22; stroke-linecap: round; }
+  .d .stop { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+  .d .stop.g { fill: var(--gate); stroke: var(--gate); }
+  .d .tick { fill: var(--muted); }
+  .d .gt { fill: var(--gate); }
+  .d .bt { fill: var(--bad); }
+  .d .at { fill: var(--accent); }
+
+  ul.plain { margin: 8px 0 0; padding-left: 20px; } ul.plain li { margin: 7px 0; }
+  .pains { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 28px; margin-top: 18px; }
+  .pains div { padding: 12px 0; border-top: 1px solid var(--line); font-size: 15px; }
+  .pains b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .principles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .principles span { font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin-top: 10px; }
+  th { text-align: left; font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.f { white-space: nowrap; font-family: var(--mono); font-size: 13.5px; }
+  .tbl { overflow-x: auto; }
+
+  /* case study */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .tile b { display: block; font: 700 28px/1.1 var(--display); font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .tile span { font-size: 13.5px; color: var(--muted); }
+  .steps { list-style: none; margin: 20px 0 0; padding: 0; position: relative; }
+  .steps::before { content: ""; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 4px; border-radius: 2px; background: var(--road); }
+  .steps li { position: relative; padding: 0 0 18px 40px; }
+  .steps li::before { content: ""; position: absolute; left: 4px; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); }
+  .steps li.g::before { background: var(--gate); border-color: var(--gate); }
+  .steps li.ok::before { background: var(--done); border-color: var(--done); }
+  .steps b { font-weight: 600; }
+  .steps .tag { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
+  .runs { display: grid; gap: 12px; margin-top: 8px; max-width: 640px; }
+  .run { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 14px; }
+  .segs { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .segs i { height: 22px; border-radius: 3px; background: var(--done); }
+  .segs i.x { background: var(--bad); }
+  .segs i:first-child { border-radius: 4px 3px 3px 4px; } .segs i:last-child { border-radius: 3px 4px 4px 3px; }
+  .runs .out { grid-column: 2; font: 13px var(--mono); color: var(--muted); margin-top: -6px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--done); vertical-align: -1px; }
+  .legend span.x::before { background: var(--bad); }
+  .lessons { display: grid; gap: 10px; margin-top: 14px; }
+  .lesson { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 10px; align-items: center; }
+  .lesson div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14.5px; height: 100%; box-sizing: border-box; }
+  .lesson div.rule { border-color: var(--accent); }
+  .lesson i { text-align: center; color: var(--muted); font-style: normal; }
+  .lesson small { display: block; font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+
+  /* observations */
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .filters button { font: 500 13px var(--body); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  .filters button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .obs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
+  .ob { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .ob .src { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ob h3 { margin: 0; font-size: 16px; }
+  .ob p { margin: 0; font-size: 14.5px; }
+  .ob .now { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 14px; }
+  .ob .now b { color: var(--accent); font-weight: 600; }
+
+  /* trends */
+  .shift { display: grid; gap: 8px; margin-top: 18px; }
+  .shift .row { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .shift .head { border-top: 0; padding: 0; font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .shift .then { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--road); text-decoration-thickness: 2px; }
+  .shift .arrow { color: var(--muted); text-align: center; }
+  .shift .now { font-weight: 600; }
+  .shift .us { font-size: 13.5px; }
+  .shift .us code { font-size: 12.5px; }
+
+  /* measured */
+  .bars { display: grid; gap: 10px; margin: 18px 0 6px; max-width: 760px; }
+  .bar { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 14px; border-radius: 6px; }
+  .bar .track { height: 14px; background: var(--road); border-radius: 4px; }
+  .bar .fill { height: 100%; background: var(--muted); border-radius: 0 4px 4px 0; }
+  .bar.us .fill { background: var(--accent); }
+  .bar.us { font-weight: 600; }
+  .bar .n { font: 500 14px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .bar:hover .fill, .bar:focus-visible .fill { filter: brightness(1.15); }
+  #tip { position: fixed; z-index: 20; max-width: 260px; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; pointer-events: none; }
+
+  .cmd { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 14px/1.7 var(--mono); overflow-x: auto; white-space: pre; margin-top: 10px; }
+  footer { margin-top: 72px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 960px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 0; }
+    nav.rail { display: none; }
+    .chips { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 12px 0; margin-bottom: 20px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+    .chips a { flex: none; font-size: 13.5px; font-weight: 500; color: var(--muted); text-decoration: none; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+    .chips a[aria-current="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    section { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 70px); }
+  }
+  @media (max-width: 640px) {
+    .lede { font-size: 18px; }
+    .bar { grid-template-columns: minmax(0, 1fr) 56px; } .bar .track { grid-column: 1 / -1; grid-row: 2; }
+    .run { grid-template-columns: minmax(0, 1fr); gap: 6px; } .runs .out { grid-column: 1; margin-top: 0; }
+    .lesson { grid-template-columns: minmax(0, 1fr); } .lesson i { transform: rotate(90deg); }
+    .shift .row { grid-template-columns: minmax(0, 1fr); gap: 2px; } .shift .arrow { display: none; } .shift .head { display: none; }
+    .shift .us::before { content: "In framed: "; color: var(--muted); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="Contents">
+    <div class="brand">framed</div>
+    <div class="grp">Start</div>
+    <a href="#overview">Overview</a>
+    <a href="#why">Why it exists</a>
+    <div class="grp">How it works</div>
+    <a href="#architecture">The pieces</a>
+    <a href="#map">The map</a>
+    <a href="#fix">A fix</a>
+    <a href="#guard">The guard</a>
+    <a href="#studio">Studio</a>
+    <a href="#the-page">The page</a>
+    <div class="grp">What we learned</div>
+    <a href="#case-study">Case study</a>
+    <a href="#observations">Observations</a>
+    <a href="#trends">Industry trends</a>
+    <a href="#measured">Measured</a>
+    <div class="grp">Use it</div>
+    <a href="#limits">Limits</a>
+    <a href="#install">Install</a>
+  </nav>
+
+  <main>
+    <nav class="chips" aria-label="Contents">
+      <a href="#overview">Overview</a><a href="#why">Why</a><a href="#architecture">Pieces</a><a href="#map">Map</a><a href="#fix">A fix</a><a href="#guard">Guard</a><a href="#studio">Studio</a><a href="#the-page">The page</a><a href="#case-study">Case study</a><a href="#observations">Observations</a><a href="#trends">Trends</a><a href="#measured">Measured</a><a href="#limits">Limits</a><a href="#install">Install</a>
+    </nav>
+
+    <header id="overview" class="prose" style="scroll-margin-top:80px">
+      <div class="kicker">A Claude Code plugin · v0.1 · November 2026</div>
+      <h1>framed</h1>
+      <p class="lede">An AI dev workflow for the code you already have. It maps a repo, fixes one ticket at a time without breaking what depends on the change, and hands you a pull request with real test output in it. For a new app, it starts from a design you pick.</p>
+      <blockquote>The code is the spec, the map is how the agent reads it, and every step ends on its own.</blockquote>
+      <div class="spine" aria-label="The spine: map, tier, budgeted steps, working file, PR">
+        <span>map</span><i>→</i><span>tier</span><i>→</i><span>budgeted steps</span><i>→</i><span>working file</span><i>→</i><span>PR</span>
+      </div>
+    </header>
+    <div class="glance" aria-label="At a glance">
+      <span><b>brownfield + greenfield</b> one workflow, two ways in</span>
+      <span><b>21</b> public repos the map was stress-tested on</span>
+      <span><b>1</b> question per fix</span>
+      <span><b>0</b> dependencies in the script</span>
+    </div>
+
+    <section id="why">
+      <div class="sec-n">Start</div>
+      <h2>Why it exists</h2>
+      <div class="prose"><p>Workflow frameworks for AI coding mostly start from an empty folder. Day-to-day work is the opposite: a ticket, a codebase nobody fully remembers, and a fix that must not break the screen next door. These are the problems framed was built around, taken from using other frameworks at work.</p></div>
+      <div class="pains">
+        <div><b>Built for greenfield</b>Brownfield is an afterthought, yet most work is fixing and extending existing code.</div>
+        <div><b>Missing tests</b>Legacy code often has none. Frameworks ignore that or try to rebuild coverage up front.</div>
+        <div><b>One size of process</b>A one-line fix gets the same heavy process as a new feature.</div>
+        <div><b>Files nobody reads</b>People click "yes" on generated documents without reading them, and the documents pile up.</div>
+        <div><b>Steps that never end</b>A brainstorm runs until you stop it, which hurts when you only get a few sessions.</div>
+        <div><b>One fix, three new bugs</b>Code that depends on the change isn't checked, so the fix breaks it.</div>
+      </div>
+      <h3>The principles that answer them</h3>
+      <div class="principles">
+        <span>Ask only what the code can't tell</span><span>Every step ends on its own</span><span>A file exists only if something reads it</span><span>Size the process to the task</span><span>Coverage follows the work</span><span>Git is the versioning</span><span>Gates talk to a person</span><span>Hooks, not prompts, for hard rules</span>
+      </div>
+      <a class="next" href="#architecture">Next <span>The pieces →</span></a>
+    </section>
+
+    <section id="architecture">
+      <div class="sec-n">How it works</div>
+      <h2>The pieces</h2>
+      <div class="prose"><p>You talk to Claude Code in plain words; there are no commands to learn. The plugin adds skills that hold the steps, two agents for jobs that need their own budget, hooks for what must never depend on the model remembering, and one Node script for everything mechanical. All state that matters lives in the repo, so a fix survives a closed session.</p></div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 580" role="img" aria-label="You talk to a Claude Code session running the framed plugin. Inside it: a SessionStart hook, three skills, two agents, the framed.js script and a guard hook. The session reads and writes the repo's .framed folder, the script writes the scan, the guard checks every git command. A local page reads the repo and the session transcripts and shows you the fix.">
+            <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <rect class="bx" x="16" y="110" width="140" height="90" rx="10"/>
+            <text class="b" x="86" y="150" text-anchor="middle">You</text>
+            <text class="s" x="86" y="170" text-anchor="middle">in the chat</text>
+            <line class="ln" x1="156" y1="140" x2="234" y2="140" marker-end="url(#a1)"/>
+            <text class="s" x="162" y="132">plain words</text>
+            <line class="ln" x1="236" y1="180" x2="158" y2="180" marker-end="url(#a1)"/>
+            <text class="s" x="164" y="196">one question</text>
+            <rect class="grp" x="236" y="20" width="360" height="430" rx="14"/>
+            <text class="b" x="252" y="42">Claude Code session + framed plugin</text>
+            <rect class="bx" x="252" y="56" width="328" height="48" rx="8"/>
+            <text class="b" x="268" y="77">SessionStart hook</text>
+            <text class="s" x="268" y="95">tells the model the repo's state and next step</text>
+            <rect class="bx" x="252" y="120" width="100" height="70" rx="8"/>
+            <text class="b" x="302" y="150" text-anchor="middle">map</text>
+            <text class="s" x="302" y="170" text-anchor="middle">set up</text>
+            <rect class="key" x="366" y="120" width="100" height="70" rx="8"/>
+            <text class="b" x="416" y="150" text-anchor="middle">patch</text>
+            <text class="s" x="416" y="170" text-anchor="middle">fix a ticket</text>
+            <rect class="bx" x="480" y="120" width="100" height="70" rx="8"/>
+            <text class="b" x="530" y="150" text-anchor="middle">design</text>
+            <text class="s" x="530" y="170" text-anchor="middle">Studio build</text>
+            <line class="ln" x1="302" y1="190" x2="318" y2="204" marker-end="url(#a1)"/>
+            <line class="ln" x1="530" y1="190" x2="514" y2="204" marker-end="url(#a1)"/>
+            <rect class="bx" x="252" y="206" width="157" height="56" rx="8"/>
+            <text class="b" x="268" y="229">map-builder agent</text>
+            <text class="s" x="268" y="248">one budgeted model pass</text>
+            <rect class="bx" x="423" y="206" width="157" height="56" rx="8"/>
+            <text class="b" x="439" y="229">design-scout agent</text>
+            <text class="s" x="439" y="248">six looks from a brief</text>
+            <rect class="bx" x="252" y="278" width="328" height="56" rx="8"/>
+            <text class="b m" x="268" y="301">framed.js</text>
+            <text class="s" x="268" y="320">scan · why · reverts · suite · tests · design · page</text>
+            <rect class="gatebx" x="252" y="350" width="328" height="56" rx="8"/>
+            <text class="b" x="268" y="373">PreToolUse guard hook</text>
+            <text class="s" x="268" y="392">checks every Bash and PowerShell command first</text>
+            <rect class="grp" x="686" y="20" width="258" height="430" rx="14"/>
+            <text class="b" x="702" y="42">Your repo</text>
+            <rect class="bx" x="702" y="56" width="226" height="150" rx="8"/>
+            <text class="b" x="718" y="78">.framed/ · committed</text>
+            <text class="m" x="718" y="102">config.json</text>
+            <text class="m" x="718" y="122">map.md</text>
+            <text class="m" x="718" y="142">tasks/&lt;TICKET&gt;.md</text>
+            <text class="m" x="718" y="162">design.md</text>
+            <text class="s" x="718" y="190">what the next session reads</text>
+            <rect class="bg" x="702" y="220" width="226" height="100" rx="8"/>
+            <text class="b" x="718" y="242">.framed/ · this machine</text>
+            <text class="m" x="718" y="266">scan.json</text>
+            <text class="m" x="718" y="286">testmap.json</text>
+            <text class="m" x="718" y="306">design/</text>
+            <rect class="bx" x="702" y="334" width="226" height="96" rx="8"/>
+            <text class="b" x="718" y="356">git</text>
+            <text class="s" x="718" y="376">a branch per ticket</text>
+            <text class="s" x="718" y="394">a commit per step</text>
+            <text class="s" x="718" y="412">a pull request to review</text>
+            <line class="ln" x1="596" y1="150" x2="700" y2="150" marker-end="url(#a1)"/>
+            <text class="s" x="604" y="142">reads, writes</text>
+            <line class="ln" x1="580" y1="306" x2="700" y2="306" marker-end="url(#a1)"/>
+            <text class="s" x="604" y="298">writes scan</text>
+            <line class="ln" x1="580" y1="378" x2="700" y2="378" marker-end="url(#a1)"/>
+            <text class="s" x="604" y="370">checks git</text>
+            <rect class="bx" x="236" y="480" width="708" height="84" rx="10"/>
+            <text class="b" x="252" y="506">The page</text>
+            <text class="s" x="252" y="526">127.0.0.1:4646 · Home · Build · Map · Files · Studio · Help</text>
+            <text class="s" x="252" y="546">read-only, except Studio's save and refresh</text>
+            <line class="ln" x1="815" y1="450" x2="815" y2="478" marker-end="url(#a1)"/>
+            <text class="s" x="807" y="469" text-anchor="end">reads .framed/, step commits</text>
+            <line class="ln" x1="416" y1="450" x2="416" y2="478" marker-end="url(#a1)"/>
+            <text class="s" x="424" y="469">transcripts → tokens</text>
+            <path class="ln" d="M236 522 H86 V204" marker-end="url(#a1)"/>
+            <text class="s" x="96" y="512">you watch</text>
+          </svg>
+        </div>
+        <figcaption>The plugin's parts and where state lives. Patch is the main flow. The guard (amber) sits between the model and git and doesn't depend on the model following instructions.</figcaption>
+      </figure>
+      <h3>How a session knows what to do</h3>
+      <div class="prose"><p>At every session start a hook reads the repo in about a second and tells the model where things stand. No slash commands: the person says what they want, and the state decides which skill runs.</p></div>
+      <div class="tbl">
+        <table>
+          <tr><th>Repo state</th><th>The person sees</th><th>The model then</th></tr>
+          <tr><td>No code yet</td><td>Pick a look in Studio, save it, say "build my design"</td><td>Runs design, never map or patch</td></tr>
+          <tr><td>Code, no setup</td><td>Say "set up framed" for a one-time scan</td><td>Runs map</td></tr>
+          <tr><td>Setup not merged</td><td>Merge <code>framed-init</code>, or work from it</td><td>Never re-runs map</td></tr>
+          <tr><td>Ready</td><td>"Tell me the bug", with the ticket prefixes</td><td>Runs patch on any bug or ticket</td></tr>
+          <tr><td>Fix in progress</td><td>The ticket and step, "say continue"</td><td>Resumes patch</td></tr>
+        </table>
+      </div>
+      <a class="next" href="#map">Next <span>The map →</span></a>
+    </section>
+
+    <section id="map">
+      <div class="sec-n">How it works</div>
+      <h2>The map: how the agent reads a repo</h2>
+      <div class="prose">
+        <p>The agent reads the map instead of the whole repo. It is built from three sources a script computes in seconds with no model, plus one budgeted model pass that names the modules in plain words and marks what it is unsure of. The file-level graph stays on the machine; the one-page module map is committed.</p>
+        <p>Every edge records where it came from, so a reader can tell a resolved import from a guess. During a fix the same graph gives the blast radius: each dependent of a changed file gets a verdict before the fix can end.</p>
+      </div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 370" role="img" aria-label="Three mechanical sources (static imports in seven languages, git co-change, tests as evidence) feed scan.json, a file-level graph. A summary goes to the map-builder agent, which writes map.md. The scan also answers the blast radius for each fix.">
+            <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <text class="s" x="16" y="26">scripted, no model, seconds</text>
+            <rect class="bx" x="16" y="40" width="250" height="64" rx="8"/>
+            <text class="b" x="32" y="63">Static imports</text>
+            <text class="s" x="32" y="81">C#, TS/JS, Python, Go,</text>
+            <text class="s" x="32" y="96">Java/Kotlin, PHP, Ruby</text>
+            <rect class="bx" x="16" y="122" width="250" height="64" rx="8"/>
+            <text class="b" x="32" y="145">Git co-change</text>
+            <text class="s" x="32" y="163">changed together 3+ times</text>
+            <text class="s" x="32" y="178">in the last 1,000 commits</text>
+            <rect class="bx" x="16" y="204" width="250" height="64" rx="8"/>
+            <text class="b" x="32" y="227">Tests as evidence</text>
+            <text class="s" x="32" y="245">a test touching A and B</text>
+            <text class="s" x="32" y="260">links A and B</text>
+            <path class="ln" d="M266 72 C300 72 300 150 334 150" marker-end="url(#a2)"/>
+            <path class="ln" d="M266 154 H334" marker-end="url(#a2)"/>
+            <path class="ln" d="M266 236 C300 236 300 158 334 158" marker-end="url(#a2)"/>
+            <rect class="bx" x="336" y="104" width="210" height="100" rx="8"/>
+            <text class="b m" x="352" y="130">scan.json</text>
+            <text class="s" x="352" y="150">every file and edge,</text>
+            <text class="s" x="352" y="167">tagged with its source</text>
+            <text class="s" x="352" y="190">this machine only</text>
+            <line class="ln" x1="546" y1="154" x2="614" y2="154" marker-end="url(#a2)"/>
+            <text class="s" x="556" y="146">summary</text>
+            <rect class="bx" x="616" y="104" width="176" height="100" rx="8"/>
+            <text class="b" x="632" y="130">map-builder</text>
+            <text class="s" x="632" y="150">one budgeted pass:</text>
+            <text class="s" x="632" y="167">names modules, flags</text>
+            <text class="s" x="632" y="184">hubs, marks unsure</text>
+            <line class="ln" x1="792" y1="154" x2="834" y2="154" marker-end="url(#a2)"/>
+            <text class="s" x="796" y="146">writes</text>
+            <rect class="key" x="836" y="104" width="108" height="100" rx="8"/>
+            <text class="b m" x="852" y="130">map.md</text>
+            <text class="s" x="852" y="150">one page</text>
+            <text class="s" x="852" y="167">committed</text>
+            <line class="ln" x1="441" y1="204" x2="441" y2="268" marker-end="url(#a2)"/>
+            <text class="s m" x="450" y="242">framed deps</text>
+            <rect class="bx" x="336" y="270" width="456" height="80" rx="8"/>
+            <text class="b" x="352" y="294">Blast radius, for each fix</text>
+            <text class="s" x="352" y="314">changed file → every dependent gets a verdict:</text>
+            <text class="s" x="352" y="332">updated, or no change and why. Also picks which test suites run.</text>
+          </svg>
+        </div>
+        <figcaption>Two levels. The scan holds thousands of file edges, too many for a page but exactly what the blast-radius check needs. The map is one committed page a person can read.</figcaption>
+      </figure>
+      <a class="next" href="#fix">Next <span>A fix →</span></a>
+    </section>
+
+    <section id="fix">
+      <div class="sec-n">How it works</div>
+      <h2>A fix: seven stops, one question</h2>
+      <div class="prose">
+        <p>Everything that needs a person is found before the gate: where the bug is, what depends on it, comments that say the code is deliberate, whether the tests can run here. The gate asks once. After a yes nobody is asked again; anything that needs a decision goes first in the PR under "For the reviewer", and the PR opens as a draft.</p>
+        <p>Each stop ends on its own, updates the working file and commits, whether it finished, failed or is waiting. That file is the checkpoint, so a closed session picks up where it stopped.</p>
+      </div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 330" role="img" aria-label="The patch flow as a road with seven stops: Find, Why, Gate, Test, Fix, Suite, PR. The first three gather everything that needs a person; the gate is the only question. Every stop writes and commits the working file.">
+            <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <path class="ln" d="M40 52 V44 H500 V52"/>
+            <text class="s" x="270" y="34" text-anchor="middle">before the gate: everything that needs a person</text>
+            <path class="ln" d="M560 52 V44 H920 V52"/>
+            <text class="s" x="740" y="34" text-anchor="middle">after the yes: no questions, notes for the reviewer</text>
+            <path class="road" d="M40 120 H920"/>
+            <text class="b" x="70" y="88" text-anchor="middle">Find</text><circle class="stop" cx="70" cy="120" r="12"/>
+            <text class="s" x="70" y="158" text-anchor="middle">map → files</text><text class="s" x="70" y="174" text-anchor="middle">blast radius proposed</text>
+            <text class="b" x="207" y="88" text-anchor="middle">Why</text><circle class="stop" cx="207" cy="120" r="12"/>
+            <text class="s" x="207" y="158" text-anchor="middle">is it deliberate?</text><text class="s m" x="207" y="174" text-anchor="middle">framed why</text>
+            <text class="b gt" x="343" y="88" text-anchor="middle">Gate</text><circle class="stop g" cx="343" cy="120" r="12"/>
+            <text class="s" x="343" y="158" text-anchor="middle">your one question</text><text class="s" x="343" y="174" text-anchor="middle">yes, or change plan</text>
+            <text class="b" x="480" y="88" text-anchor="middle">Test</text><circle class="stop" cx="480" cy="120" r="12"/>
+            <text class="s" x="480" y="158" text-anchor="middle">bug test fails</text><text class="s" x="480" y="174" text-anchor="middle">+ characterization</text>
+            <text class="b" x="617" y="88" text-anchor="middle">Fix</text><circle class="stop" cx="617" cy="120" r="12"/>
+            <text class="s m" x="617" y="158" text-anchor="middle">framed reverts</text><text class="s" x="617" y="174" text-anchor="middle">verdicts confirmed</text>
+            <text class="b" x="753" y="88" text-anchor="middle">Suite</text><circle class="stop" cx="753" cy="120" r="12"/>
+            <text class="s m" x="753" y="158" text-anchor="middle">framed suite</text><text class="s" x="753" y="174" text-anchor="middle">base-commit check</text>
+            <text class="b" x="890" y="88" text-anchor="middle">PR</text><circle class="stop" cx="890" cy="120" r="12"/>
+            <text class="s" x="890" y="158" text-anchor="middle">runner's evidence</text><text class="s" x="890" y="174" text-anchor="middle">draft if unsure</text>
+            <line class="ln dash" x1="70" y1="186" x2="70" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="207" y1="186" x2="207" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="343" y1="186" x2="343" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="480" y1="186" x2="480" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="617" y1="186" x2="617" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="753" y1="186" x2="753" y2="246" marker-end="url(#a3)"/>
+            <line class="ln dash" x1="890" y1="186" x2="890" y2="246" marker-end="url(#a3)"/>
+            <rect class="bx" x="40" y="248" width="880" height="64" rx="10"/>
+            <text class="b" x="480" y="274" text-anchor="middle">Working file · <tspan class="m">.framed/tasks/&lt;TICKET&gt;.md</tspan></text>
+            <text class="s" x="480" y="294" text-anchor="middle">updated and committed at the end of every stop, however it ends: done, failed or waiting</text>
+          </svg>
+        </div>
+        <figcaption>The road is also how the page draws a live fix. A comment that explains why the code is that way stops the fix at Why; putting back lines someone removed in the last 12 months stops it at Fix.</figcaption>
+      </figure>
+      <h3>Rules the steps follow</h3>
+      <ul class="plain prose">
+        <li><b>The ticket is the scope.</b> What the agent notices beyond it is written as "Left as is", with the file and line, and each note is checked against the code again before the gate.</li>
+        <li><b>The bug test is the evidence.</b> The PR shows it failing before the fix and passing after, copied from the runner's output. When it can't run here, the PR says so.</li>
+        <li><b>Coverage follows the work.</b> A project with no tests gets its first one where the fix lands, using the tool the repo already uses for that stack.</li>
+        <li><b>Never change the machine to get past a problem.</b> No global installs or runtime switches; what can't run is named for the reviewer.</li>
+      </ul>
+      <a class="next" href="#guard">Next <span>The guard →</span></a>
+    </section>
+
+    <section id="guard">
+      <div class="sec-n">How it works</div>
+      <h2>The guard: rules in code, not in the prompt</h2>
+      <div class="prose"><p>Prompts get ignored under pressure. The git rules are a hook that reads every shell command before it runs, on Bash and PowerShell alike, and refuses the ones that break them. The model gets the reason back and adjusts.</p></div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 240" role="img" aria-label="Every shell command the model runs passes the framed guard hook first. It blocks pushes to the default branch, force pushes, commits on the default branch or a branch with no ticket, and new branches with no ticket. Allowed commands run; blocked ones return the reason to the model.">
+            <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <rect class="bx" x="16" y="80" width="200" height="80" rx="10"/>
+            <text class="b" x="116" y="114" text-anchor="middle">The model</text>
+            <text class="s" x="116" y="134" text-anchor="middle">runs a shell command</text>
+            <line class="ln" x1="216" y1="120" x2="294" y2="120" marker-end="url(#a4)"/>
+            <rect class="gatebx" x="296" y="30" width="360" height="180" rx="10"/>
+            <text class="b m" x="312" y="56">framed guard</text>
+            <text class="s" x="312" y="76">PreToolUse hook on Bash and PowerShell</text>
+            <text x="312" y="106">blocks a push to the default branch</text>
+            <text x="312" y="128">blocks any force push</text>
+            <text x="312" y="150">blocks a commit on the default branch</text>
+            <text x="312" y="172">or on a branch with no ticket in its name</text>
+            <text x="312" y="194">blocks a new branch with no ticket</text>
+            <path class="ln" d="M656 90 H734" marker-end="url(#a4)"/>
+            <text class="s" x="664" y="82">allowed</text>
+            <path class="ln" d="M656 160 H734" marker-end="url(#a4)"/>
+            <text class="s" x="664" y="152">blocked</text>
+            <rect class="bx" x="736" y="54" width="208" height="64" rx="10"/>
+            <text class="b" x="752" y="82">Runs</text>
+            <text class="s" x="752" y="102">everything else</text>
+            <rect class="bx" x="736" y="128" width="208" height="72" rx="10"/>
+            <text class="b bt" x="752" y="156">Refused</text>
+            <text class="s" x="752" y="174">the reason goes back</text>
+            <text class="s" x="752" y="190">to the model</text>
+          </svg>
+        </div>
+        <figcaption>A ticket in the name means any path segment starting with a configured key, so the team's own branch convention passes. The hook guards the agent, not a person typing git in a terminal.</figcaption>
+      </figure>
+      <a class="next" href="#studio">Next <span>Studio →</span></a>
+    </section>
+
+    <section id="studio">
+      <div class="sec-n">How it works</div>
+      <h2>Studio: build your own style</h2>
+      <div class="prose"><p>Studio is a page for choosing how an app looks: ten built-in styles, or six more from the design scout for a brief you write. Everything is tweakable on a live preview: colours in light and dark, fonts, text size, corners, spacing and motion, with a readability check as you go. Saving builds nothing. "Build my design" in the chat does, and the folder decides which path it takes.</p></div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 380" role="img" aria-label="The design scout writes options into Studio. You save a choice, which is not committed. The design skill then shows one gate. In a folder with code it changes only the theme files and opens a PR. In an empty folder it scaffolds a new app and writes design.md for every later build.">
+            <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <rect class="bx" x="16" y="30" width="190" height="80" rx="10"/>
+            <text class="b" x="32" y="56">design scout</text>
+            <text class="s" x="32" y="76">a brief → six looks</text>
+            <text class="s m" x="32" y="96">options.json</text>
+            <line class="ln" x1="111" y1="110" x2="111" y2="148" marker-end="url(#a5)"/>
+            <rect class="key" x="16" y="150" width="190" height="100" rx="10"/>
+            <text class="b" x="32" y="178">Studio</text>
+            <text class="s" x="32" y="198">pick, tweak on a</text>
+            <text class="s" x="32" y="215">live preview, save</text>
+            <line class="ln" x1="206" y1="200" x2="254" y2="200" marker-end="url(#a5)"/>
+            <text class="s" x="214" y="192">save</text>
+            <rect class="bx" x="256" y="164" width="170" height="72" rx="10"/>
+            <text class="b m" x="272" y="192">choice.json</text>
+            <text class="s" x="272" y="212">not committed</text>
+            <line class="ln" x1="426" y1="200" x2="474" y2="200" marker-end="url(#a5)"/>
+            <rect class="gatebx" x="476" y="156" width="170" height="88" rx="10"/>
+            <text class="b" x="492" y="182">design skill</text>
+            <text class="s" x="492" y="202">"build my design"</text>
+            <text class="s" x="492" y="220">one gate first</text>
+            <path class="ln" d="M646 200 H690 V90 H726" marker-end="url(#a5)"/>
+            <path class="ln" d="M690 200 V300 H726" marker-end="url(#a5)"/>
+            <text class="s" x="682" y="130" text-anchor="end">has code</text>
+            <text class="s" x="682" y="280" text-anchor="end">empty folder</text>
+            <rect class="bx" x="728" y="30" width="216" height="120" rx="10"/>
+            <text class="b" x="744" y="56">Existing app</text>
+            <text class="s" x="744" y="76">gate lists each file, its</text>
+            <text class="s" x="744" y="93">values before → after,</text>
+            <text class="s" x="744" y="110">and fixed colours it can't reach</text>
+            <text class="s" x="744" y="134">theme files only → PR</text>
+            <rect class="bx" x="728" y="240" width="216" height="120" rx="10"/>
+            <text class="b" x="744" y="266">New app</text>
+            <text class="s" x="744" y="286">gate: stack, tokens, first</text>
+            <text class="s" x="744" y="303">screen; scaffold with the</text>
+            <text class="s" x="744" y="320">stack's own tool</text>
+            <text class="s m" x="744" y="344">design.md for later builds</text>
+          </svg>
+        </div>
+        <figcaption>Brownfield and greenfield from one design. A restyle changes the theme layer and nothing else: components that hard-code their colours are named in the gate, not rewritten. A new app gets <code>design.md</code>, which every later build follows.</figcaption>
+      </figure>
+      <a class="next" href="#the-page">Next <span>The page →</span></a>
+    </section>
+
+    <section id="the-page">
+      <div class="sec-n">How it works</div>
+      <h2>The page</h2>
+      <div class="prose">
+        <p>A local web page served by the script on <code>127.0.0.1</code>. It opens by itself when a fix, a setup or a Studio build starts, once per ticket, and reuses the repo's running page when there is one. It reads everything and writes nothing except Studio's saved choice, and it accepts requests only from itself on this machine.</p>
+      </div>
+      <div class="tbl">
+        <table>
+          <tr><th>Page</th><th>What it shows</th></tr>
+          <tr><td class="f">Home</td><td>The current fix, the map and the repo at a glance.</td></tr>
+          <tr><td class="f">Build</td><td>The fix as a road, each stop's note, the plan, decisions, blast radius, and the tokens each stop used.</td></tr>
+          <tr><td class="f">Map</td><td>Modules as bubbles. Imports are solid lines, changed-together is dashed. The modules a fix changes glow; the ones it may affect ripple.</td></tr>
+          <tr><td class="f">Files</td><td>A module's files: the ones this fix changes, the ones it may affect and why, and each file's direct neighbours and tests.</td></tr>
+          <tr><td class="f">Studio</td><td>Pick and tweak a design on a live preview.</td></tr>
+          <tr><td class="f">Help</td><td>What framed does, the gate, how to read each page, what to say, what it never does. Searchable, every section linkable.</td></tr>
+        </table>
+      </div>
+      <ul class="plain prose small muted">
+        <li>An optional status line under the chat shows the step, context left and plan limits.</li>
+        <li>A page with no tab open for 30 minutes stops itself, so old pages don't hold ports, and a second copy never starts on another port.</li>
+      </ul>
+      <a class="next" href="#case-study">Next <span>Case study →</span></a>
+    </section>
+
+    <section id="case-study">
+      <div class="sec-n">What we learned</div>
+      <h2>Case study: replaying a real bug</h2>
+      <div class="prose">
+        <p>The fairest test of a fixing tool is a bug that was already fixed. The team's fix is the known answer, so the agent's work can be checked against what people actually did.</p>
+      </div>
+      <figure>
+        <div class="fig">
+          <svg class="d narrow" viewBox="0 0 960 170" role="img" aria-label="Replay method: start from a bug the team already fixed, reset the code to the commit before the fix, give framed only the ticket text, then compare its pull request with the team's fix.">
+            <defs><marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+            <rect class="bx" x="16" y="40" width="200" height="84" rx="10"/>
+            <text class="b" x="32" y="68">A fixed bug</text>
+            <text class="s" x="32" y="88">the team's fix is</text>
+            <text class="s" x="32" y="105">the answer key</text>
+            <line class="ln" x1="216" y1="82" x2="256" y2="82" marker-end="url(#a6)"/>
+            <rect class="bx" x="258" y="40" width="200" height="84" rx="10"/>
+            <text class="b" x="274" y="68">Reset the code</text>
+            <text class="s" x="274" y="88">to the commit before</text>
+            <text class="s" x="274" y="105">the fix, on a copy</text>
+            <line class="ln" x1="458" y1="82" x2="498" y2="82" marker-end="url(#a6)"/>
+            <rect class="key" x="500" y="40" width="200" height="84" rx="10"/>
+            <text class="b" x="516" y="68">framed runs</text>
+            <text class="s" x="516" y="88">ticket text only,</text>
+            <text class="s" x="516" y="105">nothing pushed</text>
+            <line class="ln" x1="700" y1="82" x2="740" y2="82" marker-end="url(#a6)"/>
+            <rect class="bx" x="742" y="40" width="200" height="84" rx="10"/>
+            <text class="b" x="758" y="68">Compare</text>
+            <text class="s" x="758" y="88">its PR with the</text>
+            <text class="s" x="758" y="105">team's change</text>
+            <path class="ln dash" d="M842 124 V150 H116 V126" marker-end="url(#a6)"/>
+            <text class="s" x="479" y="144" text-anchor="middle">what went wrong becomes a rule, then the replay runs again</text>
+          </svg>
+        </div>
+        <figcaption>The replay loop. Each round that went wrong produced a rule in the skills, and the replay was run again.</figcaption>
+      </figure>
+
+      <h3>The codebase and the bug</h3>
+      <div class="prose">
+        <p>A real company codebase: a .NET backend serving two React front ends through one shared API, with no unit tests, only browser tests against a deployed site. The bug: a "print" action stayed available for records that were already closed. The ticket asked for three things: disable the button with a reason on hover, have the server refuse the request, and show that reason in the app.</p>
+      </div>
+
+      <h3>What framed did, stop by stop</h3>
+      <ol class="steps prose">
+        <li><b>Find</b><span class="tag">blast radius</span><br>Found the bug in two places, the server endpoint and one front end's button. The map showed the second front end calls the same endpoint, so the server's refusal was limited to the first app's records and the other app kept working as before.</li>
+        <li><b>Why</b><span class="tag">deliberate code</span><br>Found two comments that argued against the change: the shared service holds nothing app-specific, and a greyed-out button "invites a click that can only be answered with a refusal". It didn't override them quietly. It brought both to the gate as unsure.</li>
+        <li><b>Notes check</b><span class="tag">left as is</span><br>Re-read the code behind each "Left as is" note before the gate. Nothing needed correcting.</li>
+        <li class="g"><b>Gate</b><span class="tag">one question</span><br>One question with three parts. One yes, and nothing was asked after it.</li>
+        <li><b>Test</b><span class="tag">first unit tests</span><br>Set up the repo's first unit test projects, matched to the versions the project already used. The bug test failed first, as it should.</li>
+        <li><b>Fix and Suite</b><br>All front-end tests passed and the type-check was clean.</li>
+        <li class="ok"><b>PR</b><span class="tag">draft</span><br>Before and after test output exactly as the runner printed it, checked line by line against the session's own command output. The backend tests were written but couldn't run on that machine, which lacked the right .NET version. framed didn't install it: it named the gap for the reviewer and opened the PR as a draft.</li>
+      </ol>
+
+      <h3>The evidence in the PR</h3>
+      <div class="runs" role="img" aria-label="Front-end tests: before the fix 4 failed and 3 passed out of 7; after the fix all 7 passed.">
+        <div class="run"><span>Before the fix</span><div class="segs"><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i></i><i></i></div><span class="out">Tests 4 failed | 3 passed (7)</span></div>
+        <div class="run"><span>After the fix</span><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="out">Tests 7 passed (7)</span></div>
+      </div>
+      <div class="legend"><span class="x">Failed</span><span>Passed</span></div>
+
+      <div class="tiles">
+        <div class="tile"><b>1</b><span>question asked, at the gate</span></div>
+        <div class="tile"><b>7 / 7</b><span>front-end tests passing after the fix</span></div>
+        <div class="tile"><b>0</b><span>git commands the guard had to block</span></div>
+        <div class="tile"><b>138</b><span>model turns, about $6.50</span></div>
+      </div>
+
+      <h3>What earlier replays taught</h3>
+      <div class="prose"><p>The clean run above came after replays that went wrong. Each failure became a rule.</p></div>
+      <div class="lessons">
+        <div class="lesson"><div><small>What happened</small>The agent offered to fix a case the ticket never mentioned. The team's real fix had left it alone.</div><i aria-hidden="true">→</i><div class="rule"><small>Rule now</small>The ticket is the scope. Anything else is written down as "Left as is", never changed.</div></div>
+        <div class="lesson"><div><small>What happened</small>Missing the right .NET, the agent remapped a drive and moved the tests to a newer runtime, then marked the PR ready.</div><i aria-hidden="true">→</i><div class="rule"><small>Rule now</small>Never change the machine. What can't run goes to the reviewer and the PR is a draft.</div></div>
+        <div class="lesson"><div><small>What happened</small>A "Left as is" note described the code wrongly, and would have reached the reviewer as fact.</div><i aria-hidden="true">→</i><div class="rule"><small>Rule now</small>Every note names its file and line, and is re-checked against the code before the gate.</div></div>
+      </div>
+      <a class="next" href="#observations">Next <span>Observations →</span></a>
+    </section>
+
+    <section id="observations">
+      <div class="sec-n">What we learned</div>
+      <h2>Observations</h2>
+      <div class="prose"><p>What building and testing framed showed us about AI agents on real code. Each one changed something in framed. Filter by where we saw it.</p></div>
+      <div class="filters" role="group" aria-label="Filter observations by source">
+        <button type="button" id="f-all" data-f="all" aria-pressed="true">All</button>
+        <button type="button" id="f-replay" data-f="replay" aria-pressed="false">Replays</button>
+        <button type="button" id="f-stress" data-f="stress" aria-pressed="false">Stress tests</button>
+        <button type="button" id="f-bench" data-f="bench" aria-pressed="false">Benchmark</button>
+        <button type="button" id="f-use" data-f="use" aria-pressed="false">Real use</button>
+      </div>
+      <div class="obs">
+        <article class="ob" data-src="replay"><div class="src">Replay</div><h3>Agents widen the scope when unsure</h3><p>Offered to fix a neighbouring case the ticket never asked for.</p><div class="now"><b>framed now:</b> the ticket is the scope; extras are written down, not changed.</div></article>
+        <article class="ob" data-src="replay"><div class="src">Replay</div><h3>Under pressure, agents change the machine</h3><p>Remapped a drive and switched runtimes to get to green, then called it done.</p><div class="now"><b>framed now:</b> never change the machine; the PR opens as a draft and says why.</div></article>
+        <article class="ob" data-src="replay"><div class="src">Replay</div><h3>The agent's own notes need checking</h3><p>A wrong note reaches the reviewer as fact.</p><div class="now"><b>framed now:</b> each note names file and line and is re-checked before the gate.</div></article>
+        <article class="ob" data-src="stress"><div class="src">Stress test</div><h3>Prompts aren't guardrails</h3><p>Git rules only held once they were a hook. On Windows some sessions had only PowerShell, so a Bash-only hook guarded nothing.</p><div class="now"><b>framed now:</b> one guard on Bash and PowerShell, reading each shell's own syntax.</div></article>
+        <article class="ob" data-src="use"><div class="src">Real use</div><h3>Commit messages are context, not evidence</h3><p>Most commits on a real repo just said "fix".</p><div class="now"><b>framed now:</b> judges deliberate code from comments in it and from lines removed in the last year.</div></article>
+        <article class="ob" data-src="bench"><div class="src">Benchmark</div><h3>Git history is a dependency source</h3><p>Files that change together reveal links imports can't show: 62.9% of edited tests found with imports alone, 66.7% with co-change added.</p><div class="now"><b>framed now:</b> co-change is one of the map's three sources.</div></article>
+        <article class="ob" data-src="use"><div class="src">Real use</div><h3>Many real repos have no unit tests</h3><p>Only browser tests against a deployed site, or nothing.</p><div class="now"><b>framed now:</b> adds the first test where the fix lands, with the tool the team already uses.</div></article>
+        <article class="ob" data-src="stress"><div class="src">Stress test</div><h3>Heavy tools often lose to simple ones</h3><p>A dedicated dependency tool ran nine minutes and ran out of memory on a 2,000-file front end.</p><div class="now"><b>framed now:</b> a dependency-free scan that found 98.9% of that tool's links on a smaller library.</div></article>
+        <article class="ob" data-src="use"><div class="src">Real use</div><h3>Tests that switch off side effects miss real bugs</h3><p>The page never opened the browser on Windows, and the tests didn't notice because they turn the browser off.</p><div class="now"><b>framed now:</b> each piece is run on a real machine before it's called done.</div></article>
+        <article class="ob" data-src="replay"><div class="src">Replay</div><h3>One real question beats many approvals</h3><p>People click "yes" on files they don't read.</p><div class="now"><b>framed now:</b> one gate per fix, written like a message to a person.</div></article>
+      </div>
+      <a class="next" href="#trends">Next <span>Industry trends →</span></a>
+    </section>
+
+    <section id="trends">
+      <div class="sec-n">What we learned</div>
+      <h2>Industry trends we noticed</h2>
+      <div class="prose"><p>Patterns we ran into while building framed. This is our reading of the field from hands-on work, not measured market data.</p></div>
+
+      <div class="shift" role="table" aria-label="Shifts in AI-assisted development and how framed answers each">
+        <div class="row head" role="row"><span role="columnheader">Was</span><span></span><span role="columnheader">Becoming</span><span role="columnheader">In framed</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Autocomplete in the editor</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Agents that work for an hour and open a PR</span><span class="us" role="cell">A branch per ticket, a commit per step, PR as the delivery</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Rules written in the prompt</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Rules enforced by hooks, permissions and sandboxes</span><span class="us" role="cell">The guard hook</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Read the whole repo</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Curated context: maps, summaries, working files</span><span class="us" role="cell"><code>map.md</code> and the working file</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Approve every step</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Fewer, better-placed checkpoints; the PR is the main gate</span><span class="us" role="cell">One gate, then "For the reviewer"</span></div>
+        <div class="row" role="row"><span class="then" role="cell">"Tests pass", trust me</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">AI-written PRs expected to carry proof</span><span class="us" role="cell">Runner output verbatim, blast radius, "Left as is"</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Spec-first, from an empty folder</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Existing code treated as a first-class starting point</span><span class="us" role="cell">Map first; greenfield through Studio</span></div>
+        <div class="row" role="row"><span class="then" role="cell">One long session that just stops</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Background, resumable agents</span><span class="us" role="cell">Working file as checkpoint; say "continue"</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Usage nobody sees</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Tokens, cost and plan limits in the developer's view</span><span class="us" role="cell">Tokens per stop, status line with limits</span></div>
+        <div class="row" role="row"><span class="then" role="cell">Design handed over as pictures</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Design as machine-readable tokens</span><span class="us" role="cell">Studio and <code>design.md</code></span></div>
+        <div class="row" role="row"><span class="then" role="cell">Prompt files copied between projects</span><span class="arrow" aria-hidden="true">→</span><span class="now" role="cell">Whole workflows packaged as plugins</span><span class="us" role="cell">framed is one installable plugin</span></div>
+      </div>
+
+      <h3>Where the person sits</h3>
+      <div class="prose"><p>The clearest shift we saw: the person moves from approving every step to a few checkpoints that matter.</p></div>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 960 220" role="img" aria-label="Comparison of human checkpoints. Step-by-step approval asks the person at every one of ten points. framed asks once at the gate before any code changes, then the person reviews the pull request at the end.">
+            <text class="b" x="16" y="52">Approve every step</text>
+            <text class="s" x="16" y="70">ten prompts, read less each time</text>
+            <path class="road" d="M260 56 H940"/>
+            <g class="tick">
+              <circle cx="280" cy="56" r="9" class="stop g"/><circle cx="354" cy="56" r="9" class="stop g"/><circle cx="428" cy="56" r="9" class="stop g"/><circle cx="502" cy="56" r="9" class="stop g"/><circle cx="576" cy="56" r="9" class="stop g"/>
+              <circle cx="650" cy="56" r="9" class="stop g"/><circle cx="724" cy="56" r="9" class="stop g"/><circle cx="798" cy="56" r="9" class="stop g"/><circle cx="872" cy="56" r="9" class="stop g"/><circle cx="930" cy="56" r="9" class="stop g"/>
+            </g>
+            <text class="b" x="16" y="152">framed</text>
+            <text class="s" x="16" y="170">one gate, then the PR</text>
+            <path class="road" d="M260 156 H940"/>
+            <circle cx="280" cy="156" r="8" class="stop"/><circle cx="380" cy="156" r="8" class="stop"/>
+            <circle cx="480" cy="156" r="12" class="stop g"/>
+            <circle cx="580" cy="156" r="8" class="stop"/><circle cx="680" cy="156" r="8" class="stop"/><circle cx="780" cy="156" r="8" class="stop"/>
+            <circle cx="920" cy="156" r="12" class="stop g"/>
+            <text class="b gt" x="480" y="130" text-anchor="middle">Gate</text>
+            <text class="s" x="480" y="192" text-anchor="middle">before any code changes</text>
+            <text class="b gt" x="920" y="130" text-anchor="middle">PR</text>
+            <text class="s" x="920" y="192" text-anchor="end">review with evidence</text>
+            <text class="s" x="330" y="192" text-anchor="middle">find, why</text>
+            <text class="s" x="680" y="192" text-anchor="middle">test, fix, suite</text>
+          </svg>
+        </div>
+        <figcaption>Amber marks every point where a person is asked. Fewer asks means each one gets read.</figcaption>
+      </figure>
+      <a class="next" href="#measured">Next <span>Measured →</span></a>
+    </section>
+
+    <section id="measured">
+      <div class="sec-n">What we learned</div>
+      <h2>Measured</h2>
+      <div class="prose"><p>Does the map point at the tests a change actually has to update? Commits that changed source files and also edited existing tests were replayed against the map from before them. For each edited test: was it linked to a changed file?</p></div>
+      <div class="bars" role="img" aria-label="Share of edited tests linked to a changed file: imports within 3 hops 78.4%, framed 66.7%, imports only 62.9%, same file name 43.1%, same folder 27.0%.">
+        <div class="bar" tabindex="0" data-tip="Follows imports up to three files away. Finds the most, but names 5 to 8 times as many tests per changed file, too many to act on."><span>Imports within 3 hops</span><div class="track"><div class="fill" style="width:78.4%"></div></div><span class="n">78.4%</span></div>
+        <div class="bar us" tabindex="0" data-tip="framed's map: direct imports plus files that changed together in git."><span>framed (imports + co-change)</span><div class="track"><div class="fill" style="width:66.7%"></div></div><span class="n">66.7%</span></div>
+        <div class="bar" tabindex="0" data-tip="Direct imports only, without git history."><span>Imports only</span><div class="track"><div class="fill" style="width:62.9%"></div></div><span class="n">62.9%</span></div>
+        <div class="bar" tabindex="0" data-tip="A test whose name matches the changed file's name."><span>Same file name</span><div class="track"><div class="fill" style="width:43.1%"></div></div><span class="n">43.1%</span></div>
+        <div class="bar" tabindex="0" data-tip="Any test in the changed file's folder."><span>Same folder</span><div class="track"><div class="fill" style="width:27%"></div></div><span class="n">27.0%</span></div>
+      </div>
+      <p class="muted small prose">16 repos, 263 commits, 582 edited tests. Direct links stay the rule, and the full suite of each touched project still runs.</p>
+      <div class="tiles">
+        <div class="tile"><b>21</b><span>public repos the map was stress-tested on, across seven languages</span></div>
+        <div class="tile"><b>98.9%</b><span>of a dedicated dependency tool's import links found, on a 1,100-file library</span></div>
+        <div class="tile"><b>107</b><span>unit tests on the script, which has no dependencies</span></div>
+        <div class="tile"><b>7 / 7</b><span>front-end tests passing in the latest replay of a real bug</span></div>
+      </div>
+      <a class="next" href="#limits">Next <span>Limits →</span></a>
+    </section>
+
+    <section id="limits">
+      <div class="sec-n">Use it</div>
+      <h2>Limits</h2>
+      <ul class="plain prose">
+        <li>The map answers "what might be affected"; tests answer "was it". A map without tests is a confident guess.</li>
+        <li>Static imports can't see calls across repos, logic in the database, behaviour driven by config, or a front end calling an API by URL. Co-change catches some of it; the rest is written in by hand.</li>
+        <li>The guard parses command lines. It covers the normal forms and common disguises, not every shell construction, and it doesn't govern a person at a terminal.</li>
+        <li>Studio builds have been run up to their gate; the build after the yes has not yet been run end to end.</li>
+        <li>One tier, patch, is built. Bigger work and planning steps come later.</li>
+        <li>Version 0.1: proven on replays and stress tests, not yet in day-to-day team use.</li>
+      </ul>
+      <a class="next" href="#install">Next <span>Install →</span></a>
+    </section>
+
+    <section id="install">
+      <div class="sec-n">Use it</div>
+      <h2>Install</h2>
+      <div class="prose"><p>framed is open source on GitHub at <a href="https://github.com/IsharaaRanasinghe/framed">IsharaaRanasinghe/framed</a>, MIT licensed. You need Claude Code, Git and Node 18 or newer. In Claude Code:</p></div>
+      <div class="cmd">/plugin marketplace add IsharaaRanasinghe/framed
+/plugin install framed@framed</div>
+      <div class="prose" style="margin-top:16px"><p>Or from a terminal:</p></div>
+      <div class="cmd">claude plugin marketplace add IsharaaRanasinghe/framed
+claude plugin install framed@framed</div>
+      <p class="muted small prose" style="margin-top:10px">To update later: <code>claude plugin marketplace update framed</code>, then <code>claude plugin update framed@framed</code>. Restart Claude Code to load the new version.</p>
+      <div class="prose" style="margin-top:16px"><p>Then open Claude Code in any repo and say what you want:</p></div>
+      <div class="tbl">
+        <table>
+          <tr><th>Say</th><th>What happens</th></tr>
+          <tr><td class="f">set up framed</td><td>Maps an existing repo once, on a <code>framed-init</code> branch to merge.</td></tr>
+          <tr><td class="f">a ticket or bug</td><td>Starts a fix: one gate question, then a PR.</td></tr>
+          <tr><td class="f">continue</td><td>Resumes a fix from its last step.</td></tr>
+          <tr><td class="f">open the page</td><td>Shows the road, the map, Studio and Help.</td></tr>
+          <tr><td class="f">build my design</td><td>Applies the Studio design to an existing app, or starts a new one.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <footer>framed v0.1 · a Claude Code plugin: three skills, two agents, two hooks, one Node script, one local page · <a href="https://github.com/IsharaaRanasinghe/framed">github.com/IsharaaRanasinghe/framed</a> · November 2026</footer>
+  </main>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+(function () {
+  var ids = ['overview','why','architecture','map','fix','guard','studio','the-page','case-study','observations','trends','measured','limits','install'];
+  var secs = ids.map(function (id) { return document.getElementById(id); });
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.rail a, nav.chips a'));
+  var chips = document.querySelector('nav.chips');
+  var current = null;
+  function mark() {
+    var line = window.innerHeight * 0.3, on = ids[0];
+    for (var i = 0; i < secs.length; i++) if (secs[i].getBoundingClientRect().top <= line) on = ids[i];
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) on = ids[ids.length - 1];
+    if (on === current) return;
+    current = on;
+    links.forEach(function (a) {
+      var hit = a.getAttribute('href') === '#' + on;
+      a.setAttribute('aria-current', hit ? 'true' : 'false');
+      if (hit && a.parentNode === chips) chips.scrollLeft = a.offsetLeft - chips.clientWidth / 2 + a.clientWidth / 2;
+    });
+  }
+  window.addEventListener('scroll', mark, { passive: true });
+  window.addEventListener('resize', mark);
+  mark();
+
+  var btns = document.querySelectorAll('.filters button');
+  var cards = document.querySelectorAll('.ob');
+  Array.prototype.forEach.call(btns, function (b) {
+    b.addEventListener('click', function () {
+      var f = b.getAttribute('data-f');
+      Array.prototype.forEach.call(btns, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      Array.prototype.forEach.call(cards, function (c) { c.hidden = f !== 'all' && c.getAttribute('data-src') !== f; });
+    });
+  });
+
+  var tip = document.getElementById('tip');
+  function show(el) {
+    tip.textContent = el.getAttribute('data-tip');
+    tip.hidden = false;
+    var r = el.querySelector('.track').getBoundingClientRect();
+    var x = Math.min(r.left, window.innerWidth - tip.offsetWidth - 16);
+    tip.style.left = Math.max(16, x) + 'px';
+    tip.style.top = (r.top - tip.offsetHeight - 8) + 'px';
+  }
+  function hide() { tip.hidden = true; }
+  Array.prototype.forEach.call(document.querySelectorAll('.bar'), function (el) {
+    el.addEventListener('mouseenter', function () { show(el); });
+    el.addEventListener('focus', function () { show(el); });
+    el.addEventListener('mouseleave', hide);
+    el.addEventListener('blur', hide);
+  });
+  window.addEventListener('scroll', hide, { passive: true });
+})();
+</script>
+</body>
+</html>
