@@ -23,14 +23,23 @@ Everything runs on one dependency-free Node script, `scripts/framed.js`.
 
 You need Claude Code, Git and Node 18 or newer.
 
-From a clone of this repo:
+In Claude Code:
 
 ```
-/plugin marketplace add C:\path\to\framed
+/plugin marketplace add IsharaaRanasinghe/framed
 /plugin install framed@framed
 ```
 
-Or load it for a single session without installing:
+Or from a terminal:
+
+```
+claude plugin marketplace add IsharaaRanasinghe/framed
+claude plugin install framed@framed
+```
+
+To update later, run `claude plugin marketplace update framed`, then `claude plugin update framed@framed`.
+
+Or, from a clone of this repo, load it for a single session without installing:
 
 ```
 claude --plugin-dir C:\path\to\framed
