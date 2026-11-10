@@ -1,0 +1,10 @@
+{
+  "name": "framed",
+  "version": "0.1.0",
+  "description": "AI dev workflow for existing codebases: the code is the spec, the map is how the agent reads it, every step ends on its own.",
+  "author": {
+    "name": "Ishara Ranasinghe"
+  },
+  "license": "MIT",
+  "keywords": ["workflow", "brownfield", "map", "patch", "git-guardrails"]
+}

@@ -1,0 +1,75 @@
+{
+  "_about": "Named styles for the Studio page (design doc 19). Each is a full set of design tokens. Fonts are Google Fonts names with a system fallback; colours are for light and dark. The design scout agent writes more in this shape to .framed/design/options.json.",
+  "styles": [
+    {
+      "id": "calm", "name": "Calm", "vibe": "Soft neutrals, lots of space, one quiet blue.",
+      "fonts": { "heading": "Inter", "body": "Inter", "mono": "JetBrains Mono" },
+      "radius": 12, "density": "comfortable", "shadow": "soft", "motion": 180,
+      "light": { "bg": "#f6f7f9", "surface": "#ffffff", "ink": "#1b2030", "muted": "#5f6778", "line": "#e3e6ec", "accent": "#3b6fe0", "accentInk": "#ffffff", "success": "#1f8a5b", "warning": "#b7791f", "danger": "#c53b3b" },
+      "dark": { "bg": "#12151c", "surface": "#1b1f29", "ink": "#e8eaf0", "muted": "#9aa2b4", "line": "#2b3140", "accent": "#7aa2ff", "accentInk": "#0d1424", "success": "#4cc38a", "warning": "#e3ad4d", "danger": "#f07070" }
+    },
+    {
+      "id": "editorial", "name": "Editorial", "vibe": "Magazine feel: a serif for headings, cream paper, terracotta.",
+      "fonts": { "heading": "Fraunces", "body": "Source Sans 3", "mono": "IBM Plex Mono" },
+      "radius": 4, "density": "roomy", "shadow": "none", "motion": 220,
+      "light": { "bg": "#f7f2e9", "surface": "#fffdf8", "ink": "#2a211b", "muted": "#6e6156", "line": "#e6dccd", "accent": "#b4532a", "accentInk": "#ffffff", "success": "#3f7d4e", "warning": "#a86b12", "danger": "#a83232" },
+      "dark": { "bg": "#1c1814", "surface": "#25201b", "ink": "#efe6da", "muted": "#ab9e8f", "line": "#3a322a", "accent": "#e58a5f", "accentInk": "#1c1410", "success": "#77b98a", "warning": "#e0a64a", "danger": "#e47b6f" }
+    },
+    {
+      "id": "bold", "name": "Bold", "vibe": "High contrast, big type, electric violet.",
+      "fonts": { "heading": "Space Grotesk", "body": "Inter", "mono": "Space Mono" },
+      "radius": 16, "density": "comfortable", "shadow": "soft", "motion": 280,
+      "light": { "bg": "#ffffff", "surface": "#f4f2fb", "ink": "#0e0b1a", "muted": "#58536b", "line": "#e2def0", "accent": "#6d28d9", "accentInk": "#ffffff", "success": "#15803d", "warning": "#b45309", "danger": "#dc2626" },
+      "dark": { "bg": "#0c0a14", "surface": "#171326", "ink": "#f3f1fb", "muted": "#a39fbd", "line": "#2a2440", "accent": "#a78bfa", "accentInk": "#140c2e", "success": "#4ade80", "warning": "#fbbf24", "danger": "#f87171" }
+    },
+    {
+      "id": "dashboard", "name": "Dense dashboard", "vibe": "Compact, data first, a calm teal. Built for tables.",
+      "fonts": { "heading": "IBM Plex Sans", "body": "IBM Plex Sans", "mono": "IBM Plex Mono" },
+      "radius": 6, "density": "compact", "shadow": "none", "motion": 100,
+      "light": { "bg": "#f2f4f5", "surface": "#ffffff", "ink": "#16202a", "muted": "#5b6875", "line": "#dde2e6", "accent": "#0f7c80", "accentInk": "#ffffff", "success": "#2c8a4a", "warning": "#a96b00", "danger": "#c23a3a" },
+      "dark": { "bg": "#0f1417", "surface": "#171e22", "ink": "#e3e9ec", "muted": "#93a2ab", "line": "#26323a", "accent": "#3cc2c6", "accentInk": "#061416", "success": "#5cc47e", "warning": "#e3a83a", "danger": "#ef7474" }
+    },
+    {
+      "id": "warm", "name": "Warm", "vibe": "Friendly and round: peach, orange, soft shadows.",
+      "fonts": { "heading": "Nunito", "body": "Nunito", "mono": "Fira Code" },
+      "radius": 18, "density": "roomy", "shadow": "soft", "motion": 300,
+      "light": { "bg": "#fff6ef", "surface": "#ffffff", "ink": "#2b1d14", "muted": "#7a6355", "line": "#f1dfd2", "accent": "#bf4a0c", "accentInk": "#ffffff", "success": "#2f8a55", "warning": "#a8700b", "danger": "#c73e3e" },
+      "dark": { "bg": "#1d1410", "surface": "#281c16", "ink": "#f6e9df", "muted": "#b49c8d", "line": "#3d2c22", "accent": "#ff9a5a", "accentInk": "#2a1206", "success": "#6fcf97", "warning": "#f2b84b", "danger": "#f18b8b" }
+    },
+    {
+      "id": "brutalist", "name": "Brutalist", "vibe": "Square corners, black borders, hard shadows, yellow.",
+      "fonts": { "heading": "Archivo Black", "body": "Archivo", "mono": "JetBrains Mono" },
+      "radius": 0, "density": "comfortable", "shadow": "hard", "motion": 0,
+      "light": { "bg": "#fbfaf5", "surface": "#ffffff", "ink": "#000000", "muted": "#3d3d3d", "line": "#000000", "accent": "#ffd400", "accentInk": "#000000", "success": "#0a7a3a", "warning": "#a85d00", "danger": "#d10f0f" },
+      "dark": { "bg": "#0b0b0b", "surface": "#161616", "ink": "#ffffff", "muted": "#c4c4c4", "line": "#ffffff", "accent": "#ffd400", "accentInk": "#000000", "success": "#33d17a", "warning": "#ffb347", "danger": "#ff5c5c" }
+    },
+    {
+      "id": "nordic", "name": "Nordic", "vibe": "Cool whites, slate, a fjord blue-green. Clean and light.",
+      "fonts": { "heading": "Manrope", "body": "Manrope", "mono": "JetBrains Mono" },
+      "radius": 10, "density": "comfortable", "shadow": "soft", "motion": 180,
+      "light": { "bg": "#f3f6f8", "surface": "#ffffff", "ink": "#1d2a33", "muted": "#5d6d78", "line": "#dfe6eb", "accent": "#2a7f8f", "accentInk": "#ffffff", "success": "#3a8a5f", "warning": "#a77a1a", "danger": "#b84444" },
+      "dark": { "bg": "#11181d", "surface": "#19232a", "ink": "#e4ecf0", "muted": "#97a8b2", "line": "#2a3740", "accent": "#5fc0cf", "accentInk": "#071a1e", "success": "#6cc497", "warning": "#e2b45a", "danger": "#ea8080" }
+    },
+    {
+      "id": "midnight", "name": "Midnight", "vibe": "Dark first: deep navy, cyan glow. Night shift friendly.",
+      "fonts": { "heading": "Sora", "body": "Inter", "mono": "JetBrains Mono" },
+      "radius": 14, "density": "comfortable", "shadow": "soft", "motion": 200,
+      "light": { "bg": "#eef2f8", "surface": "#ffffff", "ink": "#0f1830", "muted": "#56617a", "line": "#d9e0ec", "accent": "#0e7490", "accentInk": "#ffffff", "success": "#15803d", "warning": "#a16207", "danger": "#be123c" },
+      "dark": { "bg": "#070b18", "surface": "#0f1528", "ink": "#e6ecff", "muted": "#8f9bbd", "line": "#1f2a45", "accent": "#22d3ee", "accentInk": "#03141a", "success": "#34d399", "warning": "#fbbf24", "danger": "#fb7185" }
+    },
+    {
+      "id": "earth", "name": "Earth", "vibe": "Brown, olive and sand. Grounded, a serif for headings.",
+      "fonts": { "heading": "DM Serif Display", "body": "DM Sans", "mono": "DM Mono" },
+      "radius": 8, "density": "comfortable", "shadow": "soft", "motion": 220,
+      "light": { "bg": "#f4efe6", "surface": "#fbf8f2", "ink": "#2b2418", "muted": "#6b604c", "line": "#e0d6c3", "accent": "#5f6b2d", "accentInk": "#ffffff", "success": "#4a7a3a", "warning": "#9a6a12", "danger": "#a3402c" },
+      "dark": { "bg": "#17140f", "surface": "#211c15", "ink": "#efe7d8", "muted": "#ab9f88", "line": "#362e23", "accent": "#b5c46a", "accentInk": "#171a08", "success": "#8cc07a", "warning": "#deaa4c", "danger": "#e08a74" }
+    },
+    {
+      "id": "clinical", "name": "Clinical", "vibe": "Plain, high contrast, navy. Accessible first.",
+      "fonts": { "heading": "Public Sans", "body": "Public Sans", "mono": "Roboto Mono" },
+      "radius": 6, "density": "comfortable", "shadow": "none", "motion": 120,
+      "light": { "bg": "#ffffff", "surface": "#f5f7fa", "ink": "#0b1b33", "muted": "#4a5568", "line": "#d5dbe3", "accent": "#1d4ed8", "accentInk": "#ffffff", "success": "#166534", "warning": "#92400e", "danger": "#b91c1c" },
+      "dark": { "bg": "#0a1220", "surface": "#111b2d", "ink": "#eef2f8", "muted": "#a3afc2", "line": "#25334a", "accent": "#7ea6ff", "accentInk": "#08142c", "success": "#4ade80", "warning": "#fbbf24", "danger": "#f87171" }
+    }
+  ]
+}

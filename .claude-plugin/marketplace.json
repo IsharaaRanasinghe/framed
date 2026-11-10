@@ -1,0 +1,13 @@
+{
+  "name": "framed",
+  "owner": { "name": "Ishara Ranasinghe" },
+  "description": "framed: an AI dev workflow for existing codebases.",
+  "plugins": [
+    {
+      "name": "framed",
+      "source": "./",
+      "description": "AI dev workflow for existing codebases: the code is the spec, the map is how the agent reads it, every step ends on its own.",
+      "license": "MIT"
+    }
+  ]
+}

@@ -1,0 +1,1662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>framed</title>
+<style>
+  :root {
+    --bg: #f5f3ee; --panel: #ffffff; --ink: #1d1f24; --muted: #6c707a; --line: #e3e0d8;
+    --road: #dcd8cf; --road-edge: #cbc6ba; --dash: #ffffff;
+    --done: #1f9d6b; --run: #2f6fed; --wait: #e39b12; --bad: #d64545; --skip: #b7b2a7;
+    --lane: #1f9d6b; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171b; --panel: #1e2126; --ink: #e9eaec; --muted: #9a9fa8; --line: #2d3138;
+      --road: #2b2f36; --road-edge: #353a42; --dash: #4a5059;
+      --done: #34c08a; --run: #5b8dff; --wait: #f0b23a; --bad: #ef6666; --skip: #5d626b;
+      --lane: #2aa577; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171b; --panel: #1e2126; --ink: #e9eaec; --muted: #9a9fa8; --line: #2d3138;
+    --road: #2b2f36; --road-edge: #353a42; --dash: #4a5059;
+    --done: #34c08a; --run: #5b8dff; --wait: #f0b23a; --bad: #ef6666; --skip: #5d626b;
+    --lane: #2aa577; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+  .nav { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 2px; padding: 20px 12px; background: var(--panel); border-right: 1px solid var(--line); }
+  .nav .brand { padding: 0 10px 2px; font-size: 15px; color: var(--ink); }
+  .nav .repo { padding: 0 10px 16px; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .nav a svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .nav a:hover { background: var(--bg); }
+  .nav a.on { background: color-mix(in srgb, var(--run) 12%, var(--panel)); color: var(--run); }
+  .nav .badge-dot { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; display: none; }
+  .nav .badge-dot.run { display: block; background: var(--run); } .nav .badge-dot.wait { display: block; background: var(--wait); animation: blink 1.4s infinite; }
+  .nav .badge-dot.bad { display: block; background: var(--bad); } .nav .badge-dot.done { display: block; background: var(--done); }
+  @keyframes blink { 50% { opacity: .3; } }
+  .nav-foot { padding: 10px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .nav .nav-help { margin-top: auto; }
+  .nav-foot .live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--done); margin-right: 6px; }
+  @media (max-width: 820px) {
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+    .nav { position: sticky; top: 0; z-index: 3; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .nav .brand { padding-right: 8px; } .nav .repo, .nav-foot { display: none; }
+    .nav a { padding: 7px 10px; } .nav a span { display: none; } .nav a.on span { display: inline; }
+  }
+  .page { display: none; } .page.on { display: block; }
+  .wrap { max-width: 1180px; width: 100%; margin: 0 auto; padding: 24px 16px 40px; }
+  .home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 18px; }
+  .home-card { padding: 16px 18px; text-decoration: none; color: inherit; display: block; }
+  a.home-card:hover { border-color: var(--run); }
+  .home-card .big { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .minroad { display: flex; align-items: center; gap: 0; margin: 12px 0 6px; }
+  .minroad i { width: 14px; height: 14px; border-radius: 50%; background: var(--road-edge); flex: none; }
+  .minroad b { height: 4px; flex: 1; background: var(--road-edge); }
+  .minroad .done { background: var(--done); } .minroad .running { background: var(--run); } .minroad .waiting { background: var(--wait); }
+  .minroad .failed, .minroad .stopped { background: var(--bad); }
+  header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
+  header > div:first-child { flex: 1 1 320px; min-width: 0; }
+  .meta span:last-child { overflow-wrap: anywhere; }
+  .brand { display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 600; letter-spacing: .02em; font-size: 13px; text-transform: lowercase; }
+  .brand svg { width: 22px; height: 22px; }
+  h1 { margin: 6px 0 0; font-size: 24px; line-height: 1.25; font-weight: 650; }
+  .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .pill { padding: 3px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 650; color: #fff; }
+  .pill.done { background: var(--done); } .pill.run { background: var(--run); } .pill.wait { background: var(--wait); }
+  .pill.bad { background: var(--bad); } .pill.idle { background: var(--skip); }
+  .tokens { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; min-width: 0; flex: 0 1 auto; box-shadow: var(--shadow); }
+  .tokens .big { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tokens .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .tokens .sub { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  .road-card { padding: 8px 8px 0; position: relative; overflow: hidden; }
+  .road-card svg { display: block; width: 100%; height: auto; }
+  .road-scroll { overflow-x: auto; }
+  @media (max-width: 720px) { .road-card svg { width: 720px; } }
+  .road-msg { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: var(--muted); font-size: 14px; padding: 0 16px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 10px; font-weight: 650; }
+  .pad { padding: 16px 18px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .journal { list-style: none; margin: 0; padding: 0; }
+  .journal li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .journal li:first-child { border-top: 0; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; margin: 5px 0 0 4px; background: var(--skip); }
+  .dot.done { background: var(--done); } .dot.running { background: var(--run); animation: pulse 1.6s infinite; }
+  .dot.waiting { background: var(--wait); animation: pulse 1.6s infinite; } .dot.failed, .dot.stopped { background: var(--bad); }
+  .journal .name { font-weight: 650; }
+  .journal .name small { color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .journal .note { color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
+  .journal .tk { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 2px; }
+  .gatecard { border: 2px solid var(--wait); }
+  .gatecard h2 { color: var(--wait); }
+  .reviewer { border-left: 4px solid var(--wait); }
+  details { border-top: 1px solid var(--line); }
+  details:first-of-type { border-top: 0; }
+  summary { cursor: pointer; padding: 12px 18px; font-weight: 650; list-style: none; display: flex; justify-content: space-between; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+  details[open] summary::after { content: "–"; }
+  .md { padding: 0 18px 14px; font-size: 13.5px; overflow-wrap: anywhere; }
+  .md p { margin: 0 0 8px; } .md ul, .md ol { margin: 0 0 8px; padding-left: 20px; } .md li { margin: 2px 0; }
+  .md code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+  footer { margin-top: 18px; color: var(--muted); font-size: 12.5px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .offline { display: none; background: var(--bad); color: #fff; padding: 8px 14px; border-radius: 10px; margin-bottom: 12px; font-weight: 600; }
+  .tip { position: fixed; left: 0; top: 0; pointer-events: none; background: var(--ink); color: var(--bg); padding: 8px 11px; border-radius: 10px; font-size: 12.5px; max-width: 300px; opacity: 0; transition: opacity .12s; z-index: 5; }
+  .tip b { display: block; margin-bottom: 2px; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  /* svg */
+  .stop { cursor: default; }
+  .stop .halo { fill: none; stroke-width: 3; opacity: 0; }
+  .stop.waiting .halo, .stop.running .halo { opacity: 1; animation: halo 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes halo { 0% { transform: scale(.8); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
+  .stop .disc { fill: var(--panel); stroke-width: 4; }
+  .stop .icon { fill: none; stroke: var(--muted); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .stop.done .icon { stroke: var(--done); } .stop.running .icon { stroke: var(--run); } .stop.waiting .icon { stroke: var(--wait); }
+  .stop.failed .icon { stroke: var(--bad); } .stop.skipped { opacity: .45; }
+  .stop text { fill: var(--ink); font: 650 15px system-ui, -apple-system, "Segoe UI", sans-serif; text-anchor: middle; }
+  .stop text.sub { fill: var(--muted); font-weight: 500; font-size: 12.5px; }
+  /* map */
+  .map-card { margin-top: 16px; padding: 16px 18px 12px; }
+  .map-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .map-head h2 { margin-bottom: 2px; }
+  .map-sub { color: var(--muted); font-size: 13px; max-width: 640px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); align-items: center; }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 2px solid; }
+  .legend .ln { display: inline-block; width: 22px; margin-right: 5px; vertical-align: 3px; border-top: 2px solid var(--muted); }
+  .legend .ln.dash { border-top-style: dashed; }
+  .map-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; margin-top: 6px; align-items: start; }
+  .map-body svg { display: block; width: 100%; height: auto; }
+  .map-info { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 13px; overflow-wrap: anywhere; }
+  .map-info.hint { color: var(--muted); }
+  .map-active .link:not(.hot):not(.lit) { opacity: .15; }
+  .map-info b { display: block; font-size: 14px; margin-bottom: 2px; overflow-wrap: anywhere; }
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 650; padding: 1px 8px; border-radius: 999px; color: #fff; margin: 4px 0; }
+  .map-info ul { margin: 6px 0 0; padding-left: 16px; color: var(--muted); }
+  .map-foot { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 6px; }
+  @media (max-width: 820px) { .map-body { grid-template-columns: minmax(0, 1fr); } }
+  .mod { cursor: pointer; }
+  .mod .body { stroke-width: 2.5; transition: stroke .3s, stroke-width .3s; }
+  .mod text { font: 600 12.5px system-ui, -apple-system, "Segoe UI", sans-serif; text-anchor: middle; fill: var(--ink); pointer-events: none; }
+  .mod.other .body { stroke-dasharray: 3 3; }
+  .mod.dim { opacity: .35; }
+  .mod.touched .body { stroke: var(--run); stroke-width: 5; }
+  .mod .ring { fill: none; stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .mod.touched .ring.r1 { stroke: var(--run); animation: ripple 2.4s ease-out infinite; }
+  .mod.touched .ring.r2 { stroke: var(--run); animation: ripple 2.4s ease-out 1.2s infinite; }
+  .mod.reached .body { stroke: var(--wait); stroke-width: 4; }
+  .mod.reached .ring.r1 { stroke: var(--wait); animation: ripple 2.4s ease-out .6s infinite; }
+  .mod.selected .body { stroke-width: 6; }
+  @keyframes ripple { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.6); opacity: 0; } }
+  .link { fill: none; stroke: var(--muted); opacity: .45; }
+  .link.dash { stroke-dasharray: 6 6; }
+  .link.hot { stroke: var(--wait); opacity: .95; stroke-dasharray: 8 8; animation: flow 1s linear infinite; }
+  .link.lit { opacity: .9; stroke: var(--ink); }
+  @keyframes flow { to { stroke-dashoffset: -16; } }
+  /* studio */
+  .st-mode { margin-top: 14px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-size: 13.5px; }
+  .st-mode b { display: block; margin-bottom: 2px; }
+  .st-mode.brown { border-left: 4px solid var(--wait); } .st-mode.green { border-left: 4px solid var(--done); }
+  .st-saved { margin-top: 12px; padding: 12px 16px; border-radius: 12px; background: color-mix(in srgb, var(--done) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--done) 40%, var(--line)); font-size: 13.5px; }
+  .st-saved code { user-select: all; }
+  .st-h { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 22px 0 10px; font-weight: 650; }
+  .st-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 12px; }
+  .st-card { cursor: pointer; padding: 12px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel); text-align: left; font: inherit; color: inherit; }
+  .st-card:hover { border-color: var(--muted); }
+  .st-card.on { border-color: var(--run); box-shadow: 0 0 0 3px color-mix(in srgb, var(--run) 20%, transparent); }
+  .st-card .sw { display: flex; height: 44px; border-radius: 9px; overflow: hidden; border: 1px solid var(--line); }
+  .st-card .sw span { flex: 1; } .st-card .sw .aa { flex: 1.4; display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+  .st-card .nm { font-weight: 650; margin-top: 8px; font-size: 14px; }
+  .st-card .vb { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }
+  .st-card .from { font-size: 11px; font-weight: 650; color: var(--run); text-transform: uppercase; letter-spacing: .05em; }
+  .st-work { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin-top: 18px; align-items: start; }
+  @media (max-width: 980px) { .st-work { grid-template-columns: minmax(0, 1fr); } }
+  .st-preview-card { overflow: hidden; }
+  .st-preview-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 650; font-size: 13.5px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 11px; cursor: pointer; }
+  .seg button.on { background: var(--ink); color: var(--bg); }
+  .st-controls label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; margin: 14px 0 6px; }
+  .st-controls label:first-child { margin-top: 0; }
+  .st-controls select, .st-controls input[type=range] { width: 100%; }
+  .st-controls select { padding: 7px 9px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .st-color { display: flex; gap: 8px; align-items: center; }
+  .st-color input { width: 44px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 2px; background: var(--bg); cursor: pointer; }
+  .st-color code { font-size: 12.5px; }
+  .st-group { font-size: 11.5px; color: var(--muted); margin: 8px 0 4px; font-weight: 600; }
+  .st-pal { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .st-sw { display: flex !important; gap: 8px; align-items: center; margin: 0 !important; text-transform: none !important; letter-spacing: 0 !important; font-size: 12.5px !important; color: var(--ink) !important; font-weight: 500 !important; cursor: pointer; }
+  .st-sw input { width: 30px; height: 30px; flex: none; border: 1px solid var(--line); border-radius: 8px; padding: 1px; background: var(--bg); cursor: pointer; }
+  .st-sw span { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+  .st-sw code { font-size: 10.5px; color: var(--muted); }
+  .st-refresh { margin-top: 14px; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .st-refresh textarea { width: 100%; min-height: 40px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .st-refresh .btn { margin: 0; width: auto; white-space: nowrap; }
+  .st-refresh .note { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; }
+  .st-refresh .note.run::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; border: 2px solid var(--run); border-right-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 640px) { .st-refresh { grid-template-columns: minmax(0, 1fr); } }
+  .st-check { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .st-check li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .st-check .ok { color: var(--done); font-weight: 650; } .st-check .low { color: var(--bad); font-weight: 650; }
+  .btn { display: block; width: 100%; margin-top: 16px; padding: 11px 14px; border: 0; border-radius: 11px; background: var(--run); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.ghostb { background: none; color: var(--ink); border: 1px solid var(--line); margin-top: 8px; }
+  /* the preview: a sample app screen in the chosen tokens, scoped to .pv */
+  .pv { --s: 1; background: var(--pv-bg); color: var(--pv-ink); font-family: var(--pv-body), system-ui, sans-serif; display: grid; grid-template-columns: 170px minmax(0, 1fr); min-height: 520px; font-size: var(--pv-t-base, 14px); }
+  .pv h3, .pv h4 { font-family: var(--pv-heading), system-ui, sans-serif; margin: 0; color: var(--pv-head); } .pv h4 { font-size: var(--pv-t-lg); }
+  .pv-side { background: var(--pv-surface); border-right: 1px solid var(--pv-line); padding: calc(16px * var(--s)) 12px; }
+  .pv-logo { font-family: var(--pv-heading), system-ui; font-weight: 700; font-size: 17px; margin: 0 6px calc(16px * var(--s)); }
+  .pv-nav { display: block; padding: calc(7px * var(--s)) 10px; border-radius: var(--pv-r); color: var(--pv-muted); font-size: var(--pv-t-base); margin-bottom: 2px; }
+  .pv-nav.on { background: color-mix(in srgb, var(--pv-accent) 14%, transparent); color: var(--pv-ink); font-weight: 600; }
+  .pv-main { padding: calc(20px * var(--s)); min-width: 0; }
+  .pv-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: calc(16px * var(--s)); }
+  .pv-top h3 { font-size: var(--pv-t-2xl); }
+  .pv-btn { display: inline-flex; align-items: center; padding: calc(8px * var(--s)) 14px; border-radius: var(--pv-r); background: var(--pv-accent); color: var(--pv-accentInk); font-weight: 600; font-size: var(--pv-t-base); border: 2px solid var(--pv-accent); box-shadow: var(--pv-shadow); }
+  .pv-btn.sec { background: var(--pv-surface); color: var(--pv-ink); border-color: var(--pv-line); }
+  .pv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(12px * var(--s)); margin-bottom: calc(14px * var(--s)); }
+  .pv-card { background: var(--pv-surface); border: 1px solid var(--pv-line); border-radius: var(--pv-r); padding: calc(14px * var(--s)); box-shadow: var(--pv-shadow); min-width: 0; }
+  .pv-card .k { color: var(--pv-muted); font-size: var(--pv-t-sm); } .pv-card .v { font-family: var(--pv-heading), system-ui; font-size: var(--pv-t-xl); color: var(--pv-head); font-weight: 700; margin-top: 2px; }
+  .pv-card .d { font-size: 12px; margin-top: 2px; }
+  .pv-table { width: 100%; border-collapse: collapse; font-size: var(--pv-t-base); }
+  .pv-table th { text-align: left; color: var(--pv-muted); font-weight: 600; padding: calc(6px * var(--s)) 8px; border-bottom: 1px solid var(--pv-line); }
+  .pv-table td { padding: calc(9px * var(--s)) 8px; border-bottom: 1px solid var(--pv-line); }
+  .pv-table a { color: var(--pv-link); font-weight: 600; text-decoration: var(--pv-link-line); text-underline-offset: 3px; }
+  .pv-badge { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: var(--pv-t-sm); font-weight: 600; }
+  .pv-row2 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: calc(12px * var(--s)); margin-top: calc(12px * var(--s)); }
+  .pv-field { display: block; margin-top: calc(10px * var(--s)); font-size: var(--pv-t-sm); color: var(--pv-muted); }
+  .pv-input { display: block; margin-top: 4px; padding: calc(8px * var(--s)) 10px; border: 1px solid var(--pv-line); border-radius: var(--pv-r); background: var(--pv-bg); color: var(--pv-ink); font-size: var(--pv-t-base); }
+  .pv-alert { padding: calc(10px * var(--s)) 12px; border-radius: var(--pv-r); font-size: var(--pv-t-base); border: 1px solid; margin-top: calc(10px * var(--s)); }
+  .pv code { font-family: var(--pv-mono), ui-monospace, monospace; font-size: 12px; }
+  /* motion: hover reacts at the design's speed; a motion change replays the entrance */
+  .pv-btn, .pv-nav, .pv-table td, .pv-stats .pv-card { transition: transform var(--pv-dur) var(--pv-ease), background-color var(--pv-dur) var(--pv-ease), box-shadow var(--pv-dur) var(--pv-ease); }
+  .pv-btn:hover { transform: translateY(-2px); } .pv-stats .pv-card:hover { transform: translateY(-3px); }
+  .pv-nav:not(.on):hover { background: color-mix(in srgb, var(--pv-accent) 8%, transparent); color: var(--pv-ink); }
+  .pv-table tr:hover td { background: color-mix(in srgb, var(--pv-accent) 7%, transparent); }
+  .pv.enter .pv-main > * { animation: pv-in calc(var(--pv-dur) * 2) var(--pv-ease) both; }
+  .pv.enter .pv-main > :nth-child(2) { animation-delay: calc(var(--pv-dur) * .5); }
+  .pv.enter .pv-main > :nth-child(3) { animation-delay: var(--pv-dur); }
+  .pv.enter .pv-main > :nth-child(4) { animation-delay: calc(var(--pv-dur) * 1.5); }
+  @keyframes pv-in { from { opacity: 0; transform: translateY(12px); } }
+  @media (prefers-reduced-motion: reduce) { .pv * { transition: none !important; animation: none !important; } }
+  /* help: contents on the left that follow the reading, a find box, one card per section */
+  .help { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 24px; margin-top: 18px; align-items: start; }
+  .help-toc { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 2px; }
+  .help-toc a { padding: 6px 10px; border-radius: 9px; color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 600; border-left: 3px solid transparent; }
+  .help-toc a:hover { color: var(--ink); background: var(--panel); }
+  .help-toc a.on { color: var(--run); border-left-color: var(--run); background: var(--panel); }
+  .help-find { width: 100%; padding: 8px 11px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .help-sec { padding: 18px 20px; margin-bottom: 14px; scroll-margin-top: 20px; }
+  .help-sec h2 { margin: 0 0 8px; font-size: 18px; }
+  .help-sec h3 { margin: 14px 0 4px; font-size: 14.5px; }
+  .help-sec p, .help-sec li { font-size: 14px; color: var(--ink); }
+  .help-sec p { margin: 0 0 8px; } .help-sec ul, .help-sec ol { margin: 0 0 8px; padding-left: 20px; } .help-sec li { margin: 3px 0; }
+  .help-sec code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 5px; }
+  .help-sec table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 8px; }
+  .help-sec th { text-align: left; color: var(--muted); font-weight: 650; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .help-sec td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .help-sec td:first-child { width: 42%; font-weight: 600; }
+  .help-sec .go { font-size: 13px; font-weight: 600; color: var(--run); text-decoration: none; white-space: nowrap; }
+  .help-sec .go:hover { text-decoration: underline; }
+  .help-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .help-none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+  .help-link { font-size: 12.5px; font-weight: 600; color: var(--run); text-decoration: none; }
+  .help-link:hover { text-decoration: underline; }
+  @media (max-width: 820px) {
+    .help { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .help-toc { top: 52px; z-index: 2; flex-direction: row; overflow-x: auto; gap: 6px; padding: 8px 0; background: var(--bg); }
+    .help-toc a { white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; background: var(--panel); }
+    .help-toc a.on { border-color: var(--run); }
+    .help-find { margin: 0 0 0 0; min-width: 150px; }
+    .help-sec { scroll-margin-top: 110px; padding: 16px; }
+    .help-sec td:first-child { width: auto; }
+  }
+  @media (max-width: 640px) { .pv { grid-template-columns: minmax(0, 1fr); } .pv-side { display: none; } .pv-stats, .pv-row2 { grid-template-columns: minmax(0, 1fr); } }
+  /* side panel: one module's files, one file's neighbours */
+  .files { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .files { grid-template-columns: minmax(0, 1fr); } }
+  .files-mods { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding-bottom: 8px; }
+  .files-main { min-height: 420px; }
+  .files-head { padding: 8px 10px 0; min-height: 12px; }
+  .mrow { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 18px; cursor: pointer; font-size: 13.5px; border-left: 3px solid transparent; }
+  .mrow:hover { background: var(--bg); }
+  .mrow.on { background: var(--bg); border-left-color: var(--run); font-weight: 650; }
+  .mrow .n { overflow-wrap: anywhere; }
+  .mrow .c { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .ghost { background: none; border: 0; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+  .ghost:hover { background: var(--bg); }
+  #dr-body { padding: 14px 18px 28px; }
+  #dr-body h3 { margin: 0 0 2px; font-size: 18px; overflow-wrap: anywhere; }
+  #dr-body h4 { margin: 18px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .dim-t { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .frow { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .frow:hover { background: var(--bg); }
+  .frow .fn { overflow-wrap: anywhere; }
+  .frow .why { grid-column: 2 / 4; color: var(--muted); font-size: 12.5px; margin-top: -2px; }
+  .fdot { width: 9px; height: 9px; border-radius: 50%; background: var(--road-edge); display: inline-block; }
+  .fdot.changed { background: var(--run); } .fdot.affected { background: var(--wait); }
+  .mini { font-size: 11px; font-weight: 650; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .mini.new { color: #fff; background: var(--run); border-color: var(--run); }
+  .tree details { border: 0; margin-left: 10px; }
+  .tree > details { margin-left: 0; }
+  .tree summary { padding: 4px 6px; font-size: 13.5px; font-weight: 600; border-radius: 8px; }
+  .tree summary:hover { background: var(--bg); }
+  .tree summary::after { content: none; }
+  .tree .car { display: inline-block; transition: transform .15s; color: var(--muted); }
+  .tree details[open] > summary .car { transform: rotate(90deg); }
+  .tree summary .cnt { color: var(--muted); font-weight: 500; margin-left: auto; padding-left: 8px; }
+  .tree .frow { margin-left: 10px; }
+  .search { width: 100%; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .nb svg { width: 100%; height: auto; display: block; }
+  .nb text { font: 500 11.5px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--ink); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+  .nb .nbn { cursor: pointer; }
+  #lane { transition: stroke-dashoffset 1.4s cubic-bezier(.4,.1,.2,1); }
+  .liquid { stroke: none; transition: fill .6s; }
+  #boom { transform-box: fill-box; transform-origin: 0% 50%; transition: transform .8s cubic-bezier(.3,1.4,.5,1); }
+</style>
+</head>
+<body>
+<div class="app">
+<nav class="nav" aria-label="Pages">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 18c4 0 4-12 9-12s5 12 9 12"/><circle cx="12" cy="6" r="2.2" fill="currentColor"/></svg>
+    framed
+  </div>
+  <div class="repo" id="nav-repo"></div>
+  <a href="#/home" data-page="home"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Home</span></a>
+  <a href="#/build" data-page="build"><svg viewBox="0 0 24 24"><path d="M3 18c4 0 4-12 9-12s5 12 9 12"/></svg><span>Build</span><i class="badge-dot" id="nav-build-dot"></i></a>
+  <a href="#/map" data-page="map"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="18" cy="8" r="2.5"/><circle cx="11" cy="17" r="3.5"/><path d="M8.5 8.5l1.3 5M8.8 6.8l6.7.8M16.3 10l-3.4 4.5"/></svg><span>Map</span></a>
+  <a href="#/files" data-page="files"><svg viewBox="0 0 24 24"><path d="M4 5h6l2 2h8v12H4z"/></svg><span>Files</span></a>
+  <a href="#/studio" data-page="studio"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.4-9-7.4z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg><span>Studio</span></a>
+  <a href="#/help" data-page="help" class="nav-help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg><span>Help</span></a>
+  <div class="nav-foot" id="nav-foot"></div>
+</nav>
+<main class="wrap">
+  <div class="offline" id="offline">The page lost its connection to framed. Start it again with <code>framed ui</code>.</div>
+  <div class="offline" id="stale" style="background:var(--wait)">framed was updated since this page started. Restart it (Ctrl+C, then <code>framed ui</code>) to see everything.</div>
+
+  <section class="page" id="page-home">
+    <h1 id="home-title">Loading…</h1>
+    <div class="meta" id="home-line"></div>
+    <div class="home-grid" id="home"></div>
+  </section>
+
+  <section class="page" id="page-build">
+  <header>
+    <div>
+      <h1 id="title">Loading…</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="tokens" id="tokens" hidden>
+      <div class="label">Tokens for this task</div>
+      <div class="big" id="tk-total">–</div>
+      <div class="sub" id="tk-sub"></div>
+      <div class="sub" id="tk-usage" style="margin-top:4px"></div>
+    </div>
+  </header>
+
+  <div class="card road-card">
+    <div class="road-scroll"><svg id="road" viewBox="0 52 1000 340" role="img" aria-label="Task progress road"></svg></div>
+    <div class="road-msg" id="road-msg"></div>
+    <div style="text-align:right;padding:0 16px 10px"><a class="help-link" href="#/help?s=build">What do the colours mean?</a></div>
+  </div>
+
+  <div class="grid" id="grid" hidden>
+    <div class="card pad">
+      <h2>The trip so far</h2>
+      <ul class="journal" id="journal"></ul>
+    </div>
+    <div class="stack" id="side"></div>
+  </div>
+  </section>
+
+  <section class="page" id="page-map">
+  <div class="card map-card" id="map-card" hidden>
+    <div class="map-head">
+      <div>
+        <h2>Map of the repo</h2>
+        <div class="map-sub" id="map-sub"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="map-body">
+      <svg id="map" viewBox="0 0 860 480" role="img" aria-label="Modules and how they connect"></svg>
+      <div class="map-info" id="map-info"></div>
+    </div>
+    <div class="map-foot" id="map-foot"></div>
+  </div>
+  <div class="card pad" id="map-none" hidden><h2>Map</h2><p class="dim-t" style="margin:0">This repo has no map yet. Say "set up framed" in Claude Code and the map lands here.</p></div>
+  </section>
+
+  <section class="page" id="page-studio">
+    <h1>Studio</h1>
+    <div class="meta">Pick how the app looks. Tweak it on the right, then save it, and tell Claude Code "build my design".</div>
+    <div class="st-mode" id="st-mode"></div>
+    <div id="st-saved"></div>
+    <h2 class="st-h">Styles</h2>
+    <div class="st-cards" id="st-cards"></div>
+    <div class="card st-refresh">
+      <textarea id="st-brief" maxlength="400" placeholder="Not feeling these? Say what you want, e.g. &quot;warmer and more playful, for a bakery&quot;"></textarea>
+      <button class="btn" id="st-refresh">Refresh looks</button>
+      <div class="note" id="st-scout-note">The design scout makes 6 new looks for you. It runs Claude Code in the background, so it uses tokens, and takes a minute or two.</div>
+    </div>
+    <div id="st-scout"></div>
+    <div class="st-work">
+      <div class="card st-preview-card">
+        <div class="st-preview-bar"><span id="st-pv-name"></span>
+          <div class="seg" id="st-pv-mode"><button data-v="light">Light</button><button data-v="dark">Dark</button></div>
+        </div>
+        <div class="pv" id="pv"></div>
+      </div>
+      <div class="card pad st-controls" id="st-controls"></div>
+    </div>
+  </section>
+
+  <section class="page" id="page-files">
+    <div class="files">
+      <div class="card files-mods">
+        <h2 style="padding:16px 18px 0">Modules</h2>
+        <div id="files-mods"></div>
+      </div>
+      <div class="card files-main">
+        <div class="files-head"><button class="ghost" id="dr-back" hidden>‹ Back</button></div>
+        <div id="dr-body"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="page-help">
+    <h1>Help</h1>
+    <div class="meta">How framed works, what each page shows, and what to say to it. Everything happens in Claude Code; this page shows it.</div>
+    <div class="help">
+      <nav class="help-toc" id="help-toc" aria-label="Help contents">
+        <input class="help-find" id="help-find" type="search" placeholder="Find in help" aria-label="Find in help">
+        <a href="#/help?s=what" data-s="what">What framed does</a>
+        <a href="#/help?s=start" data-s="start">Getting started</a>
+        <a href="#/help?s=gate" data-s="gate">The gate</a>
+        <a href="#/help?s=build" data-s="build">Build: the road</a>
+        <a href="#/help?s=map" data-s="map">Map</a>
+        <a href="#/help?s=pages" data-s="pages">Home, Files, Studio</a>
+        <a href="#/help?s=say" data-s="say">Things you can say</a>
+        <a href="#/help?s=never" data-s="never">What framed never does</a>
+        <a href="#/help?s=where" data-s="where">Where things live</a>
+        <a href="#/help?s=trouble" data-s="trouble">When something's off</a>
+      </nav>
+      <div id="help-body">
+        <div class="card help-sec" id="help-what">
+          <h2>What framed does</h2>
+          <p>framed fixes one ticket at a time in an existing repo. You describe the bug in Claude Code; framed finds where it is, checks whether the code there is deliberate, and stops once to ask you. After your yes it writes a test that shows the bug, fixes it, runs the tests, and hands you a pull request to review.</p>
+          <p>Every step is committed on the task's own branch, so you can stop at any point and pick up later. The pull request is where a person looks again: anything that needs a decision is listed first in it, under "For the reviewer".</p>
+        </div>
+
+        <div class="card help-sec" id="help-start">
+          <h2>Getting started</h2>
+          <h3>1. Set up the repo, once</h3>
+          <p>In Claude Code, say <code>set up framed</code>. It reads the repo and writes a map of its modules and a small config (ticket prefixes, how tests run). They land on the branch <code>framed-init</code> as a pull request. Merge it, and the repo is ready.</p>
+          <h3>2. Fix a bug</h3>
+          <p>Paste the ticket or describe the bug, with its key, e.g. <code>APP-1234: the export button does nothing for archived orders</code>. No command is needed. If there's no key, framed asks once. This page opens on <a class="go" href="#/build">Build</a> and follows along.</p>
+          <h3>3. Starting a new app instead</h3>
+          <p>In a folder with no code yet, pick a look in <a class="go" href="#/studio">Studio</a>, press "Use this design", then say <code>build my design</code>.</p>
+        </div>
+
+        <div class="card help-sec" id="help-gate">
+          <h2>The gate</h2>
+          <p>framed asks you one question per fix, before any code changes. It comes after Find and Why, so everything that needs a person has been found by then. The question has three parts:</p>
+          <ul>
+            <li><b>Where the bug is</b> and which files change.</li>
+            <li><b>What changes</b> for the user, and what stays as it is.</li>
+            <li><b>What it's unsure of</b>: comments that say the code is deliberate, tests that can't run on this machine, anything that goes against the ticket.</li>
+          </ul>
+          <h3>How to answer</h3>
+          <ul>
+            <li><b>Yes</b>: it fixes, tests and opens the pull request, and asks nothing more.</li>
+            <li><b>Anything else</b> ("keep the old message", "don't touch the shared service"): it changes the plan and asks again. A no is never the end; say what's wrong.</li>
+          </ul>
+          <p>While it waits, the Gate stop on the road is amber and the Build item in the sidebar blinks.</p>
+        </div>
+
+        <div class="card help-sec" id="help-build">
+          <h2>Build: the road <a class="go" href="#/build">Open Build →</a></h2>
+          <p>Each fix is a road with seven stops: <b>Find</b> (where the bug is), <b>Why</b> (is it deliberate?), <b>Gate</b> (your yes), <b>Test</b> (prove the bug), <b>Fix</b> (change the code), <b>Suite</b> (run every test), <b>PR</b> (ready for review).</p>
+          <table>
+            <tr><th>Colour</th><th>Means</th></tr>
+            <tr><td><i class="help-dot" style="background:var(--done)"></i>Green</td><td>Done and committed.</td></tr>
+            <tr><td><i class="help-dot" style="background:var(--run)"></i>Blue</td><td>Working on it now.</td></tr>
+            <tr><td><i class="help-dot" style="background:var(--wait)"></i>Amber</td><td>Waiting for you.</td></tr>
+            <tr><td><i class="help-dot" style="background:var(--bad)"></i>Red</td><td>Failed or stopped. The note under the road says why.</td></tr>
+            <tr><td><i class="help-dot" style="background:var(--road-edge)"></i>Grey</td><td>Not reached yet.</td></tr>
+          </table>
+          <p>Below the road, <b>The trip so far</b> lists each step's note, and the side panels show the plan, decisions, what changed and the blast radius (everything the change could reach). The tokens card counts what the fix has used so far.</p>
+        </div>
+
+        <div class="card help-sec" id="help-map">
+          <h2>Map <a class="go" href="#/map">Open Map →</a></h2>
+          <p>Each bubble is a module of the repo, coloured by language. A solid line means one module imports the other; a dashed line means their files often change together in git history.</p>
+          <p>During a fix, the modules it <b>changes</b> glow blue and the ones it <b>may affect</b> ripple amber. Everything else dims. Hover a module to see what it does; click it to open its files.</p>
+        </div>
+
+        <div class="card help-sec" id="help-pages">
+          <h2>Home, Files, Studio</h2>
+          <h3>Home <a class="go" href="#/home">Open →</a></h3>
+          <p>One card each for the current fix, the map, the files, your Claude usage and this repo.</p>
+          <h3>Files <a class="go" href="#/files">Open →</a></h3>
+          <p>The modules and their files. Open a file to see what it uses, what uses it, the files that change with it and its tests.</p>
+          <h3>Studio <a class="go" href="#/studio">Open →</a></h3>
+          <p>Pick a look, tweak it on the live preview (colours light and dark, fonts, text size, corners, spacing, shadows, motion) and press "Use this design". The readability check flags text that's hard to read. Not liking any? Write what you want and press Refresh looks: the design scout makes six more, which uses tokens.</p>
+          <p>Saving builds nothing. Say <code>build my design</code> in Claude Code. In an existing app it changes only the theme (colours, fonts, corners), after one question that lists every file it will change.</p>
+        </div>
+
+        <div class="card help-sec" id="help-say">
+          <h2>Things you can say</h2>
+          <p>Plain words in Claude Code; no commands to learn.</p>
+          <table>
+            <tr><th>Say</th><th>What happens</th></tr>
+            <tr><td>A bug, with its ticket key</td><td>A fix starts, or picks up where it stopped if that ticket is already under way.</td></tr>
+            <tr><td><code>set up framed</code></td><td>Writes the map and config, as a pull request.</td></tr>
+            <tr><td><code>build my design</code></td><td>Builds the design saved in Studio.</td></tr>
+            <tr><td><code>find more designs for a bakery</code></td><td>The design scout makes six new looks for Studio.</td></tr>
+            <tr><td><code>open the framed page</code></td><td>Opens this page now.</td></tr>
+            <tr><td><code>turn the framed page off</code> / <code>on</code></td><td>Off: it no longer opens by itself. Your choice, kept on your machine, not in the repo.</td></tr>
+            <tr><td><code>install the framed status line</code></td><td>One line under the chat: the fix's step, context left, and your 5-hour and weekly limits.</td></tr>
+          </table>
+        </div>
+
+        <div class="card help-sec" id="help-never">
+          <h2>What framed never does</h2>
+          <ul>
+            <li><b>Commit or push to the default branch, or force push.</b> A hook checks every git command before it runs, so this holds even if the model forgets.</li>
+            <li><b>Change your machine</b> to get past a problem: no global installs, PATH changes or new runtimes. If a test can't run here, the pull request says so and opens as a draft.</li>
+            <li><b>Push to a remote that isn't real.</b> With no remote, it gives you the pull request's title and description to open yourself.</li>
+            <li><b>Change things outside the ticket.</b> What it notices on the way is written down as "Left as is", with the file and line.</li>
+            <li><b>Make up test results.</b> The before and after in the pull request are copied from the test runner's own output.</li>
+          </ul>
+        </div>
+
+        <div class="card help-sec" id="help-where">
+          <h2>Where things live</h2>
+          <table>
+            <tr><th>File</th><th>What it is</th></tr>
+            <tr><td><code>.framed/config.json</code></td><td>Ticket prefixes, branch names, how the tests run.</td></tr>
+            <tr><td><code>.framed/map.md</code></td><td>The map: modules, what depends on what, what's surprising.</td></tr>
+            <tr><td><code>.framed/tasks/&lt;TICKET&gt;.md</code></td><td>The fix's working file: plan, steps, decisions. Committed at every step; becomes the pull request's description, then is deleted.</td></tr>
+            <tr><td><code>.framed/design/</code></td><td>Studio's looks and your saved pick. Not committed: it's your picking, not the repo's.</td></tr>
+            <tr><td><code>.framed/design.md</code></td><td>A new app's design rules, which every later build follows.</td></tr>
+            <tr><td><code>~/.framed/</code></td><td>Your own settings: page on or off, which page runs where.</td></tr>
+          </table>
+        </div>
+
+        <div class="card help-sec" id="help-trouble">
+          <h2>When something's off</h2>
+          <table>
+            <tr><th>You see</th><th>Do this</th></tr>
+            <tr><td>"The page lost its connection"</td><td>The page stopped. Say <code>open the framed page</code>. A page with no tab open stops by itself after 30 minutes.</td></tr>
+            <tr><td>"framed was updated since this page started"</td><td>Say <code>open the framed page</code>; it restarts the page on the new version.</td></tr>
+            <tr><td>The page didn't open when a fix started</td><td>It may be turned off. Say <code>turn the framed page on</code>.</td></tr>
+            <tr><td>The map doesn't glow during a fix</td><td>The scan isn't on this machine. Run <code>framed map scan</code> in the repo.</td></tr>
+            <tr><td>A draft pull request with "For the reviewer"</td><td>Something needs a person: often a test that couldn't run on this machine. Read those lines first.</td></tr>
+          </table>
+        </div>
+        <div class="help-none" id="help-none" hidden>Nothing in help matches that. Try a shorter word.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer><span id="foot-left"></span><span id="foot-right">read-only · updates live</span></footer>
+</main>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const STOPS = {
+  find:  { name: 'Find',  sub: 'where the bug is' },
+  blame: { name: 'Why',   sub: 'is it deliberate?' },
+  gate:  { name: 'Gate',  sub: 'your yes' },
+  test:  { name: 'Test',  sub: 'prove the bug' },
+  fix:   { name: 'Fix',   sub: 'change the code' },
+  suite: { name: 'Suite', sub: 'run every test' },
+  pr:    { name: 'PR',    sub: 'ready for review' },
+};
+const ORDER = Object.keys(STOPS);
+// Stops sit on the road's bends; labels go on the outside of each bend.
+const POINTS = [[90, 290], [225, 140], [360, 270], [500, 130], [640, 270], [775, 140], [910, 270]];
+const START = [40, 300], END = [962, 250];
+
+const ICONS = {
+  find: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',
+  blame: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  // a boom barrier: arm down = shut, arm up = open
+  gate: '<path d="M5 21V9M2.5 21h5"/><circle cx="5" cy="9" r="1.6"/><g id="boom"><path d="M6.6 9H22"/><path d="M11 7.6v2.8M15.5 7.6v2.8M20 7.6v2.8"/></g>',
+  test: '<path class="liquid" id="liquid" d="M7.2 15.5h9.6l2 3.6a1.6 1.6 0 0 1-1.4 2.4H6.6a1.6 1.6 0 0 1-1.4-2.4z"/><path d="M9 3h6M10 3v6.5L5.2 19.1a1.6 1.6 0 0 0 1.4 2.4h10.8a1.6 1.6 0 0 0 1.4-2.4L14 9.5V3"/>',
+  fix: '<path d="M14.6 5.6a4 4 0 0 0-5 5L3.5 16.7a1.9 1.9 0 0 0 2.7 2.7l6.1-6.1a4 4 0 0 0 5-5l-2.4 2.4-2.3-.4-.4-2.3z"/>',
+  suite: '<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M3.5 6.5l1.4 1.4 2.4-2.6M3.5 12l1.4 1.4 2.4-2.6M3.5 17.5l1.4 1.4 2.4-2.6"/>',
+  pr: '<circle cx="6" cy="5.5" r="2.2"/><circle cx="6" cy="18.5" r="2.2"/><circle cx="18" cy="18.5" r="2.2"/><path d="M6 7.7v8.6M18 16.3V9.5a3 3 0 0 0-3-3h-3.5"/><path d="M13.5 4.3 11.3 6.5l2.2 2.2"/>',
+};
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, parent) => {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (parent) parent.appendChild(n);
+  return n;
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => n < 1000 ? String(n) : n < 1e6 ? (n / 1e3).toFixed(n < 1e4 ? 1 : 0) + 'k' : (n / 1e6).toFixed(n < 1e7 ? 2 : 1) + 'M';
+
+// Catmull-Rom through the points, as cubic beziers. Returns the path and each point's offset along it.
+function buildRoadPath(svg) {
+  const pts = [START, ...POINTS, END];
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    const seg = `C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${p2[0]} ${p2[1]}`;
+    segs.push(`M${p1[0]} ${p1[1]} ${seg}`);
+    d += ' ' + seg;
+  }
+  // measured off-page: the road's own page may be hidden, and hidden paths can measure as 0
+  const probe = el('path', { d: '', fill: 'none' }, measureSvg);
+  const at = [0];
+  for (const s of segs) { probe.setAttribute('d', s); at.push(at[at.length - 1] + probe.getTotalLength()); }
+  probe.setAttribute('d', d);
+  roadProbe = probe;
+  return { d, total: at[at.length - 1], stopAt: at.slice(1, -1) };
+}
+const measureSvg = el('svg', { style: 'position:absolute;left:-9999px;top:0;width:1px;height:1px;visibility:hidden', 'aria-hidden': 'true' }, document.body);
+let roadProbe = null;
+
+let geo = null;
+let markerAt = 0;
+let lastJson = '';
+
+function drawStatic() {
+  const svg = $('road');
+  svg.innerHTML = '';
+  const defs = el('defs', {}, svg);
+  defs.innerHTML = '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  geo = buildRoadPath(svg);
+  el('path', { d: geo.d, fill: 'none', stroke: 'var(--road-edge)', 'stroke-width': 44, 'stroke-linecap': 'round' }, svg);
+  el('path', { d: geo.d, fill: 'none', stroke: 'var(--road)', 'stroke-width': 38, 'stroke-linecap': 'round' }, svg);
+  el('path', { id: 'lane', d: geo.d, fill: 'none', stroke: 'var(--lane)', 'stroke-width': 38, 'stroke-linecap': 'round', opacity: .9,
+    'stroke-dasharray': geo.total, 'stroke-dashoffset': geo.total }, svg);
+  el('path', { d: geo.d, fill: 'none', stroke: 'var(--dash)', 'stroke-width': 2.5, 'stroke-dasharray': '11 13', opacity: .85 }, svg);
+  // finish flag where the road ends
+  const flag = el('g', { transform: `translate(${END[0] - 4} ${END[1] - 62})` }, svg);
+  el('path', { d: 'M0 0V40', stroke: 'var(--muted)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, flag);
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    el('rect', { x: 1 + c * 6, y: r * 6, width: 6, height: 6, fill: (r + c) % 2 ? 'var(--panel)' : 'var(--ink)', stroke: 'var(--ink)', 'stroke-width': .6 }, flag);
+  }
+  el('g', { id: 'loops' }, svg);
+  const stops = el('g', { id: 'stops' }, svg);
+  ORDER.forEach((key, i) => {
+    const [x, y] = POINTS[i];
+    const g = el('g', { class: 'stop todo', id: `stop-${key}`, transform: `translate(${x} ${y})`, 'data-key': key }, stops);
+    el('circle', { class: 'halo', r: 36 }, g);
+    if (key === 'gate') {
+      el('rect', { class: 'disc', x: -31, y: -31, width: 62, height: 62, rx: 14 }, g);
+    } else {
+      el('circle', { class: 'disc', r: 31 }, g);
+    }
+    const ic = el('g', { class: 'icon', transform: 'translate(-15.6 -15.6) scale(1.3)' }, g);
+    ic.innerHTML = ICONS[key];
+    el('g', { class: 'badge' }, g);
+    const up = y < 200; // bend points up: label above; down: label below
+    const t1 = el('text', { y: up ? -58 : 62 }, g); t1.textContent = STOPS[key].name;
+    const t2 = el('text', { class: 'sub', y: up ? -42 : 79 }, g); t2.textContent = STOPS[key].sub;
+    g.addEventListener('mousemove', (e) => showTip(e, key));
+    g.addEventListener('mouseleave', hideTip);
+  });
+  const m = el('g', { id: 'marker', filter: 'url(#glow)', style: 'display:none' }, svg);
+  el('circle', { r: 13, fill: 'var(--run)', stroke: '#fff', 'stroke-width': 3.5 }, m);
+  el('path', { d: 'M-4 -1.5l3 3 5.5-6', fill: 'none', stroke: '#fff', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', id: 'marker-check', opacity: 0 }, m);
+  placeMarker(0);
+}
+
+function pointAt(len) {
+  const p = roadProbe.getPointAtLength(Math.max(0, Math.min(geo.total, len)));
+  return [p.x, p.y];
+}
+function placeMarker(len) {
+  const [x, y] = pointAt(len);
+  $('marker').setAttribute('transform', `translate(${x} ${y})`);
+  markerAt = len;
+}
+function moveMarker(to) {
+  const from = markerAt;
+  if (Math.abs(to - from) < 1) return placeMarker(to);
+  const t0 = performance.now(), dur = 1400;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    placeMarker(from + (to - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+const COLOR = { done: 'var(--done)', running: 'var(--run)', waiting: 'var(--wait)', failed: 'var(--bad)', stopped: 'var(--bad)', todo: 'var(--road-edge)', skipped: 'var(--road-edge)' };
+
+function badge(g, s) {
+  const b = g.querySelector('.badge');
+  b.innerHTML = '';
+  if (s.status === 'done') {
+    el('circle', { cx: 23, cy: -23, r: 10, fill: 'var(--done)', stroke: 'var(--panel)', 'stroke-width': 3 }, b);
+    el('path', { d: 'M18.5 -23.5l3 3 5-5.5', fill: 'none', stroke: '#fff', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, b);
+  } else if (s.status === 'failed' || s.status === 'stopped') {
+    el('circle', { cx: 23, cy: -23, r: 10, fill: 'var(--bad)', stroke: 'var(--panel)', 'stroke-width': 3 }, b);
+    const t = el('text', { x: 23, y: -18.5, fill: '#fff', style: 'font-size:14px;font-weight:800;fill:#fff' }, b); t.textContent = '!';
+  }
+}
+
+function drawLoops(road) {
+  const g = $('loops');
+  g.innerHTML = '';
+  road.forEach((s, i) => {
+    if (s.runs < 2) return;
+    const [x, y] = POINTS[i];
+    const up = y < 200, dy = up ? 1 : -1; // loop on the road's inner side
+    const r = 22;
+    el('path', { d: `M${x - 20} ${y + dy * 26} a${r} ${r} 0 1 ${up ? 0 : 1} 40 0`, fill: 'none', stroke: 'var(--wait)', 'stroke-width': 3, 'stroke-dasharray': '4 4', transform: `translate(0 ${dy * 10})` }, g);
+    const t = el('text', { x: x + 34, y: y + dy * 48, style: 'font:700 13px system-ui;fill:var(--wait)' }, g);
+    t.textContent = `×${s.runs}`;
+  });
+}
+
+let lastState = null;
+function renderRoad(task) {
+  const road = task ? task.road : ORDER.map((key) => ({ key, status: 'todo', runs: 0, note: '' }));
+  const tk = task && task.tokens && task.tokens.available ? task.tokens.byStop : {};
+  road.forEach((s) => {
+    const g = $(`stop-${s.key}`);
+    g.setAttribute('class', `stop ${s.status}`);
+    g.querySelector('.disc').setAttribute('stroke', COLOR[s.status] || COLOR.todo);
+    g.querySelector('.halo').setAttribute('stroke', COLOR[s.status] || COLOR.todo);
+    const sub = g.querySelector('text.sub');
+    const t = tk[s.key];
+    sub.textContent = s.status === 'waiting' ? 'waiting for you'
+      : s.status === 'running' ? 'working on it…'
+      : s.status === 'stopped' ? 'stopped'
+      : s.status === 'failed' ? 'failed, retrying'
+      : s.status === 'done' && t ? `${fmt(t.fresh + t.cached)} tokens`
+      : STOPS[s.key].sub;
+    badge(g, s);
+  });
+  // gate swings open once answered
+  const gate = road.find((s) => s.key === 'gate');
+  const open = gate && gate.status === 'done';
+  $('boom').style.transform = open ? 'rotate(-62deg)' : 'rotate(0deg)';
+  // test flask: red while the bug tests fail, green once the suite passes
+  const st = (k) => (road.find((s) => s.key === k) || {}).status;
+  $('liquid').setAttribute('fill', st('suite') === 'done' ? 'var(--done)' : st('test') === 'done' || st('fix') === 'running' ? 'var(--bad)' : 'transparent');
+  drawLoops(road);
+  // progress: up to the last done stop, or the whole road when finished
+  const doneIdx = road.reduce((acc, s, i) => (s.status === 'done' ? i : acc), -1);
+  const finished = road.every((s) => s.status === 'done' || s.status === 'skipped');
+  const lane = finished ? geo.total : doneIdx >= 0 ? geo.stopAt[doneIdx] : 0;
+  // first draw lands in place; later changes animate
+  $('lane').style.transition = firstDraw ? 'none' : '';
+  $('lane').setAttribute('stroke-dashoffset', geo.total - lane);
+  const cur = task ? road.findIndex((s) => !['done', 'skipped'].includes(s.status)) : -1;
+  const target = finished ? geo.total - 6 : cur >= 0 ? geo.stopAt[cur] - 46 : 0;
+  const m = $('marker');
+  m.style.display = task ? '' : 'none';
+  m.querySelector('circle').setAttribute('fill', finished ? 'var(--done)' : road[cur] && road[cur].status === 'waiting' ? 'var(--wait)' : road[cur] && ['failed', 'stopped'].includes(road[cur].status) ? 'var(--bad)' : 'var(--run)');
+  $('marker-check').setAttribute('opacity', finished ? 1 : 0);
+  if (firstDraw) placeMarker(Math.max(0, target)); else moveMarker(Math.max(0, target));
+  firstDraw = false;
+}
+let firstDraw = true;
+
+// Minimal markdown for the working file sections: lists, `code`, **bold**, paragraphs.
+const inline = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+function md(text) {
+  let html = '', list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    const li = line.match(/^(\s*)[-*]\s+(?:\[( |x)\]\s+)?(.*)$/);
+    const ol = line.match(/^(\s*)\d+\.\s+(.*)$/);
+    if (li || ol) {
+      const kind = li ? 'ul' : 'ol';
+      if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
+      const depth = Math.floor(((li || ol)[1] || '').length / 2);
+      const box = li && li[2] ? (li[2] === 'x' ? '☑ ' : '☐ ') : '';
+      html += `<li style="margin-left:${depth * 16}px">${box}${inline(li ? li[3] : ol[2])}</li>`;
+    } else if (line.trim() === '') {
+      close();
+    } else {
+      close();
+      html += `<p>${inline(line)}</p>`;
+    }
+  }
+  close();
+  return html;
+}
+
+function reviewerItems(task) {
+  const out = [];
+  for (const k of ['Open questions', 'Decisions']) {
+    for (const line of String(task.sections[k] || '').split('\n')) {
+      const m = line.match(/For the reviewer:\s*(.*)$/i);
+      if (m) out.push(m[1]);
+    }
+  }
+  return out;
+}
+
+function renderPanels(task) {
+  const tk = task.tokens && task.tokens.available ? task.tokens.byStop : {};
+  $('journal').innerHTML = task.road.filter((s) => s.status !== 'todo').map((s) => {
+    const t = tk[s.key];
+    return `<li><span class="dot ${s.status}"></span><div><div class="name">${STOPS[s.key].name}<small>${esc(STOPS[s.key].sub)}${s.runs > 1 ? ` · ran ${s.runs} times` : ''}</small></div>`
+      + `<div class="note">${inline(s.note || (s.status === 'running' ? 'working on it…' : ''))}</div></div>`
+      + `<span class="tk">${t ? fmt(t.fresh + t.cached) : ''}</span></li>`;
+  }).join('') || '<li><span class="dot running"></span><div><div class="name">Starting</div><div class="note">Reading the ticket and the map…</div></div><span></span></li>';
+
+  const side = [];
+  const waiting = task.road.some((s) => s.status === 'waiting');
+  if (waiting) {
+    side.push(`<div class="card gatecard"><div class="pad" style="padding-bottom:4px"><h2>Waiting for your yes</h2><div style="font-size:13.5px;margin-bottom:8px">Answer in the chat. After yes, framed fixes, tests and opens the PR without asking again.</div></div><div class="md">${md(task.sections.Plan)}</div></div>`);
+  }
+  const rev = reviewerItems(task);
+  if (rev.length) {
+    side.push(`<div class="card pad reviewer"><h2>For the reviewer</h2><div class="md" style="padding:0">${md(rev.map((r) => '- ' + r).join('\n'))}</div></div>`);
+  }
+  const blocks = [['What it found', 'Task'], ['Plan', 'Plan'], ['Decisions', 'Decisions'], ['What changed', 'Changes'], ['Blast radius', 'Blast radius']]
+    .filter(([, k]) => task.sections[k] && !(waiting && k === 'Plan') && task.sections[k] !== '(nothing yet)');
+  const openKey = task.status === 'done' ? 'Changes' : 'Task';
+  side.push(`<div class="card">${blocks.map(([label, k]) => `<details data-k="${k}"${(openDetails[k] ?? k === openKey) ? ' open' : ''}><summary>${label}</summary><div class="md">${md(task.sections[k])}</div></details>`).join('')}</div>`);
+  $('side').innerHTML = side.join('');
+  $('side').querySelectorAll('details').forEach((d) => d.addEventListener('toggle', () => { openDetails[d.dataset.k] = d.open; }));
+}
+const openDetails = {};
+
+function renderHeader(s) {
+  const task = s.task;
+  if (!task) {
+    $('title').textContent = s.state === 'ready' ? 'Ready for a bug' : s.line || 'framed';
+    $('meta').innerHTML = s.branch ? `<span class="chip">${esc(s.branch)}</span>` : '';
+    $('tokens').hidden = true;
+    $('road-msg').textContent = s.line || '';
+    return;
+  }
+  $('road-msg').textContent = '';
+  $('title').textContent = task.title || task.ticket;
+  const cur = task.road.find((x) => !['done', 'skipped'].includes(x.status));
+  const [cls, label] = task.status === 'done' ? ['done', task.collapsed ? 'Done · PR opened' : 'Done']
+    : task.status === 'closed' ? ['idle', 'Closed, no change needed']
+    : cur && cur.status === 'waiting' ? ['wait', 'Waiting for you']
+    : cur && cur.status === 'stopped' ? ['bad', `Stopped at ${STOPS[cur.key].name}`]
+    : ['run', cur ? `${STOPS[cur.key].name}: ${STOPS[cur.key].sub}` : 'Working'];
+  $('meta').innerHTML = `<span class="chip">${esc(task.ticket)}</span><span class="pill ${cls}">${esc(label)}</span><span>${esc(task.branch)}</span>`;
+  const t = task.tokens;
+  $('tokens').hidden = false;
+  $('tk-usage').textContent = usageLine(s.usage);
+  if (t && t.available) {
+    $('tk-total').textContent = fmt(t.total.fresh + t.total.cached);
+    $('tk-sub').textContent = `${fmt(t.total.fresh)} new · ${fmt(t.total.cached)} re-read from cache · ${t.total.replies} replies`;
+  } else {
+    $('tk-total').textContent = 'not available';
+    $('tk-sub').textContent = 'no session log for this repo on this machine';
+  }
+}
+
+function showTip(e, key) {
+  if (!lastState || !lastState.task) return;
+  const s = lastState.task.road.find((x) => x.key === key);
+  const t = lastState.task.tokens && lastState.task.tokens.available && lastState.task.tokens.byStop[key];
+  tipAt(e, `<b>${STOPS[key].name} · ${esc(s.status)}</b>${inline(s.note || STOPS[key].sub)}${t ? `<div style="margin-top:4px;opacity:.75">${fmt(t.fresh)} new · ${fmt(t.cached)} re-read · ${t.replies} replies</div>` : ''}`);
+}
+// The tooltip lives on the page, not in a card, so nothing clips it; it flips to stay on screen.
+function tipAt(e, html) {
+  const tip = $('tip');
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY + 16;
+  if (x + w > innerWidth - 8) x = Math.max(8, e.clientX - w - 14);
+  if (y + h > innerHeight - 8) y = Math.max(8, e.clientY - h - 14);
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+}
+function hideTip() { $('tip').style.opacity = 0; }
+
+// ---- map: modules as bubbles, links as lines; the task's modules glow, its blast radius ripples
+const LANG_COLOR = { 'C#': '#7b5cd6', TypeScript: '#2f6fed', JavaScript: '#d9a400', Python: '#2b8a9e', Java: '#c2410c', Go: '#0e9ab5', Ruby: '#cc3344', PHP: '#6b6fb8', Kotlin: '#a855f7', Rust: '#b45309' };
+const langOf = (m) => (m.langs || '').split(',')[0].trim();
+const colorOf = (m) => LANG_COLOR[langOf(m)] || 'var(--skip)';
+let mapKey = '', mapNodes = [], mapLinks = [], selected = null, lastMap = null;
+const MAP_W = 860, MAP_H = 480;
+
+// Short label: drop the dotted prefix most modules share (ProductionManagementSystem.), keep the last folder.
+function labeler(mods) {
+  const firsts = {};
+  for (const m of mods) if (m.name.includes('.') && !m.name.includes('/')) { const p = m.name.split('.')[0]; firsts[p] = (firsts[p] || 0) + 1; }
+  return (name) => {
+    let n = name.includes('/') ? name.split('/').pop() : name;
+    const p = n.split('.')[0];
+    if (n.includes('.') && firsts[p] > 1) n = n.slice(p.length + 1);
+    return n;
+  };
+}
+
+// Deterministic force layout: same map, same picture.
+function layoutMap(mods, links) {
+  const W = MAP_W, H = MAP_H, N = mods.length;
+  // start each language on its own side (backend one side, frontends the other), then let it settle
+  const langs = [...new Set(mods.map(langOf))];
+  const nodes = mods.map((m, i) => {
+    const li = langs.indexOf(langOf(m));
+    const x0 = langs.length > 1 ? W * (0.2 + 0.6 * li / (langs.length - 1)) : W / 2;
+    return { ...m, r: m.other ? 16 : Math.min(60, 18 + Math.sqrt(m.files) * 2.4), x: x0 + Math.cos(i * 2.4) * 90, y: H / 2 + Math.sin(i * 2.4) * 150 };
+  });
+  const label = labeler(mods);
+  for (const n of nodes) n.half = Math.max(n.r, label(n.name).length * 3.7); // keep labels on screen too
+  const idx = Object.fromEntries(nodes.map((n, i) => [n.name, i]));
+  const maxW = Math.max(1, ...links.map((l) => Math.log(1 + l.strength)));
+  const L = links.map((l) => ({ ...l, a: nodes[idx[l.from]], b: nodes[idx[l.to]], w: Math.log(1 + l.strength) / maxW })).filter((l) => l.a && l.b && l.a !== l.b);
+  for (let it = 0; it < 600; it++) {
+    const k = 1 - it / 600;
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = b.x - a.x, dy = b.y - a.y; const d2 = Math.max(dx * dx + dy * dy, 1), d = Math.sqrt(d2);
+      const f = Math.min(30, (60000 / d2) * k);
+      dx /= d; dy /= d;
+      a.x -= dx * f; a.y -= dy * f; b.x += dx * f; b.y += dy * f;
+      const min = a.r + b.r + 44;
+      if (d < min) { const p = (min - d) / 2; a.x -= dx * p; a.y -= dy * p; b.x += dx * p; b.y += dy * p; }
+    }
+    for (const l of L) {
+      const { a, b } = l; const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(Math.hypot(dx, dy), 1);
+      const f = (d - (a.r + b.r + 110)) * 0.008 * (0.3 + l.w) * k;
+      a.x += (dx / d) * f; a.y += (dy / d) * f; b.x -= (dx / d) * f; b.y -= (dy / d) * f;
+    }
+    for (const n of nodes) {
+      n.x += (W / 2 - n.x) * 0.003 * k; n.y += (H / 2 - n.y) * 0.01 * k;
+      n.x = Math.max(n.half + 10, Math.min(W - n.half - 10, n.x)); n.y = Math.max(n.r + 10, Math.min(H - n.r - 26, n.y));
+    }
+  }
+  return { nodes, links: L };
+}
+
+function drawMap(map) {
+  const svg = $('map');
+  svg.innerHTML = '';
+  const { nodes, links } = layoutMap(map.modules, map.links);
+  mapNodes = nodes; mapLinks = links;
+  const label = labeler(map.modules);
+  const lg = el('g', {}, svg);
+  for (const l of links) {
+    // a slight curve so two-way links don't sit on top of each other
+    const mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2, dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
+    const d = Math.hypot(dx, dy) || 1, bend = 18;
+    const cx = mx - (dy / d) * bend, cy = my + (dx / d) * bend;
+    const staticLink = l.sources.includes('static');
+    l.el = el('path', { class: `link${staticLink ? '' : ' dash'}`, d: `M${l.a.x} ${l.a.y} Q${cx} ${cy} ${l.b.x} ${l.b.y}`, 'stroke-width': (1.2 + l.w * 5).toFixed(1) }, lg);
+  }
+  const ng = el('g', {}, svg);
+  for (const n of nodes) {
+    const g = el('g', { class: `mod${n.other ? ' other' : ''}`, transform: `translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})` }, ng);
+    el('circle', { class: 'ring r1', r: n.r }, g);
+    el('circle', { class: 'ring r2', r: n.r }, g);
+    const c = colorOf(n);
+    el('circle', { class: 'body', r: n.r, fill: `color-mix(in srgb, ${c} 16%, var(--panel))`, stroke: c }, g);
+    const text = label(n.name);
+    const inside = n.r >= 40 && text.length * 7 < n.r * 2.1;
+    const t = el('text', { y: inside ? 4 : n.r + 16 }, g);
+    t.textContent = text;
+    if (inside && n.files) { const s = el('text', { y: 20, style: 'font-weight:500;font-size:11px;fill:var(--muted)' }, g); s.textContent = `${n.files} files`; }
+    n.el = g;
+    g.addEventListener('mousemove', (e) => tipAt(e, `<b>${esc(n.name)}</b>${esc(n.what || (n.other ? 'not a source module' : ''))}${n.files ? `<div style="margin-top:4px;opacity:.75">${esc(n.langs)} · ${n.files} source files</div>` : ''}`));
+    g.addEventListener('mouseleave', hideTip);
+    g.addEventListener('click', () => {
+      selected = n.name; highlightMap(lastMap);
+      if (!n.other && lastMap.scan) { filesDepth = 0; openDrawer({ kind: 'module', name: n.name }); }
+    });
+  }
+}
+
+function highlightMap(map) {
+  const touched = new Set(map.touched), reached = new Set(map.reached);
+  const active = touched.size > 0;
+  for (const n of mapNodes) {
+    const cls = ['mod'];
+    if (n.other) cls.push('other');
+    if (touched.has(n.name)) cls.push('touched');
+    else if (reached.has(n.name)) cls.push('reached');
+    else if (active && !selected) cls.push('dim');
+    if (selected === n.name) cls.push('selected');
+    if (selected && selected !== n.name && !mapLinks.some((l) => (l.a === n || l.b === n) && (l.a.name === selected || l.b.name === selected))) cls.push('dim');
+    n.el.setAttribute('class', cls.join(' '));
+  }
+  for (const l of mapLinks) {
+    const hot = (touched.has(l.a.name) && reached.has(l.b.name)) || (touched.has(l.b.name) && reached.has(l.a.name)) || (touched.has(l.a.name) && touched.has(l.b.name));
+    const lit = selected && (l.a.name === selected || l.b.name === selected);
+    l.el.setAttribute('class', `link${l.sources.includes('static') ? '' : ' dash'}${hot ? ' hot' : ''}${lit ? ' lit' : ''}`);
+  }
+  // the info box: the selected module, else what the task touches
+  const info = $('map-info');
+  const pick = selected && mapNodes.find((n) => n.name === selected);
+  if (pick) {
+    const ls = mapLinks.filter((l) => l.a === pick || l.b === pick).sort((x, y) => y.strength - x.strength).slice(0, 6);
+    const tag = touched.has(pick.name) ? '<span class="tag" style="background:var(--run)">changed in this task</span>' : reached.has(pick.name) ? '<span class="tag" style="background:var(--wait)">may be affected</span>' : '';
+    info.innerHTML = `<b>${esc(pick.name)}</b>${tag}<div>${esc(pick.what || '')}</div><div style="color:var(--muted);margin-top:4px">${esc(pick.langs)}${pick.files ? ` · ${pick.files} source files` : ''}</div>`
+      + (ls.length ? `<ul>${ls.map((l) => `<li>${l.a === pick ? 'uses' : 'used by'} ${esc((l.a === pick ? l.b : l.a).name)} <span style="opacity:.7">(${esc(l.sources.join(', '))}, ${l.strength})</span></li>`).join('')}</ul>` : '');
+    info.className = 'map-info';
+  } else if (active) {
+    info.innerHTML = `<b>This task</b><div style="margin:4px 0"><span class="tag" style="background:var(--run)">changes</span> ${[...touched].map(esc).join(', ')}</div>`
+      + (reached.size ? `<div><span class="tag" style="background:var(--wait)">may affect</span> ${[...reached].map(esc).join(', ')}</div>` : '<div style="color:var(--muted)">No other module in the blast radius.</div>')
+      + '<div style="color:var(--muted);margin-top:8px">Click a module to see what it does and what it connects to.</div>';
+    info.className = 'map-info';
+  } else {
+    info.innerHTML = 'Click a module to see what it does and what it connects to. Bigger bubble, more files; thicker line, stronger link.';
+    info.className = 'map-info hint';
+  }
+  $('map').classList.toggle('map-active', active || !!selected);
+}
+
+// ---- Files page: a module's files (task files first, then the folder tree), a file's neighbours.
+// The address names the view (#/files?module=<name>, #/files?file=<path>), so Back works and a
+// view can be shared.
+let filesView = null, filesDepth = 0;
+const fileName = (p) => p.split('/').pop();
+const markDot = (f) => `<span class="fdot ${f.mark || ''}"></span>`;
+
+function openDrawer(view) {
+  filesDepth += 1;
+  location.hash = view.kind === 'module' ? `#/files?module=${encodeURIComponent(view.name)}` : `#/files?file=${encodeURIComponent(view.path)}`;
+}
+async function showDrawer() {
+  const view = filesView;
+  $('dr-back').hidden = filesDepth < 1;
+  if (!view) { $('dr-body').innerHTML = filesHome(); wireDrawer(null, null); return; }
+  const url = view.kind === 'module' ? `/module?name=${encodeURIComponent(view.name)}` : `/file?path=${encodeURIComponent(view.path)}`;
+  let data;
+  try { data = await (await fetch(url, { cache: 'no-store' })).json(); } catch { data = { error: 'the page lost its connection to framed' }; }
+  if (view !== filesView) return; // moved on while loading
+  if (data.error) { $('dr-body').innerHTML = `<div class="pad"><p class="dim-t">${esc(data.error)}</p></div>`; return; }
+  if (view.kind === 'file' && data.module) { selected = data.module; renderFilesMods(); }
+  $('dr-body').innerHTML = view.kind === 'module' ? moduleHtml(data, view) : fileHtml(data);
+  wireDrawer(view, data);
+}
+
+// No module picked yet: what this task touches, else how to start.
+function filesHome() {
+  if (!lastState) return '<p class="dim-t">Loading…</p>';
+  if (!lastMap) return '<div class="pad"><p class="dim-t">This repo has no map yet, so there are no modules to browse.</p></div>';
+  if (!lastMap.scan) return '<div class="pad"><p class="dim-t">Browsing files needs the scan on this machine: run <code>framed map scan</code>.</p></div>';
+  const t = lastMap.touched, r = lastMap.reached;
+  const row = (name, mark) => `<div class="mrow" data-mod="${esc(name)}"><span class="fdot ${mark}"></span><span class="n">${esc(name)}</span><span></span></div>`;
+  return `<div class="pad"><h3>Files</h3><p class="dim-t">Pick a module on the left to see its files, then a file to see what it connects to.</p></div>`
+    + (t.length ? `<h4 style="margin:0 18px 6px">This task changes</h4>${t.map((n) => row(n, 'changed')).join('')}` : '')
+    + (r.length ? `<h4 style="margin:14px 18px 6px">and may affect</h4>${r.map((n) => row(n, 'affected')).join('')}` : '');
+}
+
+function renderFilesMods() {
+  const box = $('files-mods');
+  if (!lastMap) { box.innerHTML = `<p class="dim-t" style="padding:0 18px">${lastState ? 'No map yet.' : 'Loading…'}</p>`; return; }
+  const t = new Set(lastMap.touched), r = new Set(lastMap.reached);
+  const mods = lastMap.modules.filter((m) => !m.other).slice().sort((a, b) => (t.has(b.name) - t.has(a.name)) || (r.has(b.name) - r.has(a.name)) || b.files - a.files);
+  const label = labeler(lastMap.modules);
+  box.innerHTML = mods.map((m) => `<div class="mrow${selected === m.name ? ' on' : ''}" data-mod="${esc(m.name)}" title="${esc(m.name)}"><span class="fdot ${t.has(m.name) ? 'changed' : r.has(m.name) ? 'affected' : ''}"></span><span class="n">${esc(label(m.name))}</span><span class="c">${m.files}</span></div>`).join('');
+  box.querySelectorAll('[data-mod]').forEach((n) => n.addEventListener('click', () => openDrawer({ kind: 'module', name: n.dataset.mod })));
+}
+
+function fileRow(f, why) {
+  return `<div class="frow" data-path="${esc(f.path)}">${markDot(f)}<span class="fn">${esc(f.label || fileName(f.path))}</span>`
+    + `<span>${f.isNew ? '<span class="mini new">new</span>' : ''}${f.test ? '<span class="mini">test</span>' : ''}</span>`
+    + (why ? `<span class="why">${inline(why)}</span>` : '') + '</div>';
+}
+
+function moduleHtml(data, view) {
+  const info = (lastMap && lastMap.modules.find((m) => m.name === data.name)) || {};
+  const changed = data.files.filter((f) => f.mark === 'changed');
+  const affected = data.files.filter((f) => f.mark === 'affected');
+  const tests = data.files.filter((f) => f.test).length;
+  let h = `<h3>${esc(data.name)}</h3><div class="dim-t">${esc(info.what || '')}</div>`
+    + `<div class="dim-t" style="margin-top:4px">${esc(info.langs || '')} · ${data.files.length} files${tests ? ` · ${tests} tests` : ''}${data.path ? ` · <code>${esc(data.path)}</code>` : ''}</div>`;
+  if (lastState && lastState.task) {
+    h += '<h4>In this task</h4>';
+    if (!changed.length && !affected.length) h += '<div class="dim-t">This task doesn\'t touch this module.</div>';
+    if (changed.length) h += `<div class="dim-t" style="margin:2px 0 2px 6px">changes</div>${changed.map((f) => fileRow({ ...f, label: f.rel })).join('')}`;
+    if (affected.length) h += `<div class="dim-t" style="margin:8px 0 2px 6px">may be affected</div>${affected.map((f) => fileRow({ ...f, label: f.rel }, `${f.source ? `(${f.source}) ` : ''}${f.note || ''}`)).join('')}`;
+  }
+  h += `<h4>All files</h4><input class="search" id="dr-search" placeholder="Find a file in ${esc(data.name)}…" value="${esc(view.q || '')}"><div class="tree" id="dr-tree" style="margin-top:8px"></div>`;
+  return h;
+}
+
+// Folder tree from module-relative paths; folders holding the task's files start open.
+function treeHtml(files) {
+  const root = { dirs: {}, files: [] };
+  for (const f of files) {
+    const parts = f.rel.split('/');
+    let node = root;
+    for (const p of parts.slice(0, -1)) node = node.dirs[p] = node.dirs[p] || { dirs: {}, files: [] };
+    node.files.push(f);
+  }
+  const count = (n) => n.files.length + Object.values(n.dirs).reduce((s, d) => s + count(d), 0);
+  const marks = (n) => n.files.map((f) => f.mark).concat(...Object.values(n.dirs).map(marks)).filter(Boolean);
+  const render = (n, depth) => Object.keys(n.dirs).sort().map((name) => {
+    let d = n.dirs[name], label = name;
+    while (!d.files.length && Object.keys(d.dirs).length === 1) { const k = Object.keys(d.dirs)[0]; label += `/${k}`; d = d.dirs[k]; } // fold single-child chains
+    const m = marks(d);
+    const dot = m.includes('changed') ? '<span class="fdot changed" style="margin-left:6px"></span>' : m.includes('affected') ? '<span class="fdot affected" style="margin-left:6px"></span>' : '';
+    return `<details${m.length || (depth === 0 && Object.keys(n.dirs).length === 1) ? ' open' : ''}><summary style="display:flex;align-items:center"><span class="car">▸</span>&nbsp;${esc(label)}${dot}<span class="cnt">${count(d)}</span></summary>${render(d, depth + 1)}${d.files.map((f) => fileRow(f)).join('')}</details>`;
+  }).join('');
+  return render(root, 0) + root.files.map((f) => fileRow(f)).join('');
+}
+
+function fileHtml(f) {
+  const tag = f.mark === 'changed' ? '<span class="tag" style="background:var(--run)">changed in this task</span>'
+    : f.mark === 'affected' ? '<span class="tag" style="background:var(--wait)">may be affected</span>' : '';
+  let h = `<h3>${esc(fileName(f.path))}</h3><div class="dim-t">${esc(f.path)}</div>`
+    + `<div style="margin-top:6px">${f.module ? `<span class="chip">${esc(f.module)}</span> ` : ''}${tag}</div>`
+    + (f.note ? `<div class="dim-t" style="margin-top:6px">${f.source ? `(${esc(f.source)}) ` : ''}${inline(f.note)}</div>` : '');
+  h += `<div class="nb" style="margin-top:12px">${neighbourSvg(f)}</div>`;
+  const group = (title, key, why) => {
+    const list = f[key];
+    if (!f.total[key]) return '';
+    return `<h4>${title} (${f.total[key]})</h4>${list.map((x) => fileRow(x, why(x))).join('')}`
+      + (f.total[key] > list.length ? `<div class="dim-t" style="margin-left:26px">and ${f.total[key] - list.length} more</div>` : '');
+  };
+  const other = (x) => (x.module && x.module !== f.module ? `in ${x.module}` : '');
+  h += group('Used by', 'usedBy', (x) => other(x));
+  h += group('Uses', 'uses', (x) => other(x));
+  h += group('Changed together in git', 'changedWith', (x) => [`${x.weight} times`, other(x)].filter(Boolean).join(' · '));
+  h += group('Tests that touch it', 'tests', () => '');
+  if (!Object.values(f.total).some(Boolean)) h += '<p class="dim-t">No links to other files in the scan.</p>';
+  return h;
+}
+
+// The file in the middle; what uses it on the right, what it uses on the left.
+function neighbourSvg(f) {
+  const W = 420, H = 250, cx = W / 2, cy = H / 2;
+  const left = f.uses.slice(0, 7), right = f.usedBy.slice(0, 7);
+  const col = (list, x) => list.map((n, i) => ({ ...n, x, y: list.length === 1 ? cy : 28 + (i * (H - 56)) / (list.length - 1) }));
+  const nodes = [...col(left, 122).map((n) => ({ ...n, side: 'l' })), ...col(right, W - 122).map((n) => ({ ...n, side: 'r' }))];
+  const color = (m) => (m === 'changed' ? 'var(--run)' : m === 'affected' ? 'var(--wait)' : 'var(--skip)');
+  const short = (p) => { const s = fileName(p); return s.length > 19 ? s.slice(0, 17) + '…' : s; };
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Direct neighbours of ${esc(fileName(f.path))}">`;
+  s += `<text x="8" y="14" style="fill:var(--muted)">uses →</text><text x="${W - 8}" y="14" text-anchor="end" style="fill:var(--muted)">← used by</text>`;
+  for (const n of nodes) s += `<path d="M${cx} ${cy} C${(cx + n.x) / 2} ${cy} ${(cx + n.x) / 2} ${n.y} ${n.x} ${n.y}" fill="none" stroke="${color(n.mark)}" stroke-width="1.6" opacity=".7"/>`;
+  for (const n of nodes) {
+    s += `<g class="nbn" data-path="${esc(n.path)}"><circle cx="${n.x}" cy="${n.y}" r="6.5" fill="${color(n.mark)}"/>`
+      + `<text x="${n.side === 'l' ? n.x - 11 : n.x + 11}" y="${n.y + 4}" text-anchor="${n.side === 'l' ? 'end' : 'start'}">${esc(short(n.path))}</text></g>`;
+  }
+  s += `<circle cx="${cx}" cy="${cy}" r="15" fill="${color(f.mark)}" stroke="var(--panel)" stroke-width="4"/>`;
+  s += `<text x="${cx}" y="${cy + 32}" text-anchor="middle" style="font-weight:650">${esc(short(f.path))}</text>`;
+  if (!nodes.length) s += `<text x="${cx}" y="${cy - 26}" text-anchor="middle" style="fill:var(--muted)">no imports either way</text>`;
+  return s + '</svg>';
+}
+
+function wireDrawer(view, data) {
+  const body = $('dr-body');
+  body.querySelectorAll('[data-path]').forEach((n) => n.addEventListener('click', () => openDrawer({ kind: 'file', path: n.dataset.path })));
+  body.querySelectorAll('[data-mod]').forEach((n) => n.addEventListener('click', () => openDrawer({ kind: 'module', name: n.dataset.mod })));
+  const search = $('dr-search');
+  if (!search) return;
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    view.q = search.value;
+    $('dr-tree').innerHTML = q
+      ? data.files.filter((f) => f.rel.toLowerCase().includes(q)).slice(0, 80).map((f) => fileRow({ ...f, label: f.rel })).join('') || '<div class="dim-t">No file matches.</div>'
+      : treeHtml(data.files);
+    $('dr-tree').querySelectorAll('[data-path]').forEach((n) => n.addEventListener('click', () => openDrawer({ kind: 'file', path: n.dataset.path })));
+  };
+  search.addEventListener('input', draw);
+  draw();
+}
+
+$('dr-back').addEventListener('click', () => { filesDepth = Math.max(0, filesDepth - 1); history.back(); });
+
+// ---- Studio: pick a style, tweak it on a live preview, save the choice for Claude Code to build
+let studio = null; // { data, base, style, pv }
+const lum = (h) => { const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const inkOn = (bg) => (contrast('#ffffff', bg) >= contrast('#000000', bg) ? '#ffffff' : '#000000');
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const loadedFonts = new Set();
+function loadFonts(fonts) {
+  // Google Fonts when online; the preview falls back to the system font when not
+  const fams = [fonts.heading, fonts.body, fonts.mono].filter((f) => f && !loadedFonts.has(f));
+  if (!fams.length) return;
+  // one request per family: a font with a single weight fails a request for three, so retry plain
+  for (const f of fams) {
+    loadedFonts.add(f);
+    const fam = encodeURIComponent(f).replace(/%20/g, '+');
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?family=${fam}:wght@400;600;700&display=swap`;
+    l.onerror = () => { l.onerror = null; l.href = `https://fonts.googleapis.com/css2?family=${fam}&display=swap`; };
+    document.head.appendChild(l);
+  }
+}
+// spacing and motion, as the script reads them
+const DENSITIES = { compact: 0.7, comfortable: 1, roomy: 1.3 };
+const densityScale = (s) => (typeof s.density === 'number' ? s.density : DENSITIES[s.density]);
+const MOTION_DEFAULT = 150, LIVELY_MS = 250;
+const motionMs = (s) => (s.motion === undefined ? MOTION_DEFAULT : s.motion);
+const motionEase = (ms) => (ms >= LIVELY_MS ? 'cubic-bezier(0.34, 1.4, 0.64, 1)' : 'cubic-bezier(0.2, 0, 0, 1)');
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const TYPE_DEFAULT = { base: 16, scale: 1.25 };
+function typeSizes(style) {
+  const { base, scale } = style.type || TYPE_DEFAULT;
+  const r = (n) => Math.round(n * 10) / 10;
+  return { sm: r(base / scale), base, lg: r(base * scale), xl: r(base * scale ** 2), '2xl': r(base * scale ** 3) };
+}
+// fonts to pick from, besides the ones the styles use; any other Google Font can be typed in
+const FONT_LIST = ['Inter', 'Manrope', 'DM Sans', 'Public Sans', 'IBM Plex Sans', 'Source Sans 3', 'Nunito', 'Work Sans', 'Poppins', 'Roboto', 'Open Sans', 'Lato',
+  'Plus Jakarta Sans', 'Outfit', 'Sora', 'Space Grotesk', 'Archivo', 'Bricolage Grotesque', 'Fraunces', 'DM Serif Display', 'Playfair Display', 'Lora', 'Merriweather', 'Archivo Black'];
+const COLOUR_GROUPS = [
+  ['Text', [['ink', 'Text'], ['muted', 'Quiet text'], ['heading', 'Headings']]],
+  ['Surfaces', [['bg', 'Background'], ['surface', 'Cards'], ['line', 'Borders']]],
+  ['Accent', [['accent', 'Accent'], ['accentInk', 'Text on accent']]],
+  ['Status', [['success', 'Success'], ['warning', 'Warning'], ['danger', 'Danger']]],
+];
+const SCALES = [['subtle', 1.15], ['balanced', 1.25], ['bold', 1.333], ['dramatic', 1.5]];
+
+async function loadStudio() {
+  let data;
+  try { data = await (await fetch('/studio', { cache: 'no-store' })).json(); } catch { return; }
+  if (data.error) { $('st-mode').textContent = data.error; return; }
+  const all = [...(data.current || []).map((c) => ({ ...c, from: 'your current look' })), ...data.options.map((o) => ({ ...o, from: 'design scout' })), ...data.presets];
+  const keep = studio && studio.style;
+  const apps = (data.apps || []).filter((a) => a.files.length);
+  const target = (studio && studio.target) || (data.choice && data.choice.target && data.choice.target.dir) || ((data.current || [])[0] || {}).app || (apps[0] || {}).dir || null;
+  studio = { data, all, apps, target, pv: (studio && studio.pv) || (data.choice && data.choice.preview) || 'light', scoutSeen: studio && studio.scoutSeen };
+  const saved = data.choice && data.choice.style;
+  const start = keep || (saved ? clone(saved) : clone(all[0]));
+  studio.base = all.find((x) => x.id === start.id.replace(/-custom$/, '')) || all[0];
+  studio.style = start;
+  all.forEach((s) => loadFonts(s.fonts));
+  renderStudio();
+}
+
+function pick(id) {
+  const s = studio.all.find((x) => x.id === id);
+  studio.base = s;
+  studio.style = clone(s);
+  delete studio.style.from;
+  if (s.app) studio.target = s.app; // a current look restyles its own app
+  renderStudio();
+}
+
+function tweak(fn) {
+  const s = studio.style;
+  fn(s);
+  if (!s.id.endsWith('-custom')) { s.id = `${s.id}-custom`; s.name = `${s.name} (custom)`; }
+  loadFonts(s.fonts);
+  renderPreview(); updateControls(); renderCardsOn();
+}
+
+function renderStudio() {
+  const d = studio.data;
+  $('st-mode').className = `st-mode ${d.mode === 'greenfield' ? 'green' : 'brown'}`;
+  $('st-mode').innerHTML = d.mode === 'greenfield'
+    ? '<b>New project</b>This folder has no code yet. The design you save becomes the foundation: framed builds the whole app on it, and every later build follows it.'
+    : '<b>Existing app: only with your OK, and only its theme</b>A restyle changes the theme layer (colours, fonts, corners) and never rewrites every screen. Before touching anything, framed shows you exactly which files change and asks. "No" changes nothing.'
+      + (studio.apps.length ? `<div class="dim-t" style="margin-top:8px">How it's styled now: ${studio.apps.map((a) => `<b style="display:inline;color:var(--ink)">${esc(a.dir.split('/').pop())}</b> ${esc(a.libraries.join(', ') || 'plain CSS')}, in ${a.files.map((f) => `<code>${esc(f.split('/').slice(-2).join('/'))}</code>`).join(', ')}`).join(' · ')}</div>` : '');
+  const c = d.choice;
+  $('st-saved').innerHTML = c ? `<div class="st-saved"><b>Saved: ${esc(c.style.name)}</b>${c.target ? ` for ${esc(c.target.name)}` : ''} · ${esc(new Date(c.savedAt).toLocaleString())}${d.built ? ' · built' : ''}<br>Next: in Claude Code, say <code>build my design</code>.</div>` : '';
+  $('st-cards').innerHTML = studio.all.map((s) => {
+    const p = s[studio.pv];
+    return `<button class="st-card" data-id="${esc(s.id)}">${s.from ? `<div class="from">${esc(s.from)}</div>` : ''}<div class="sw" style="background:${p.bg}">`
+      + `<span class="aa" style="background:${p.surface};color:${p.ink};font-family:'${esc(s.fonts.heading)}',system-ui">Aa</span>`
+      + `<span style="background:${p.accent}"></span><span style="background:${p.ink}"></span><span style="background:${p.muted}"></span></div>`
+      + `<div class="nm">${esc(s.name)}</div><div class="vb">${esc(s.vibe || '')}</div></button>`;
+  }).join('');
+  $('st-cards').querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => pick(b.dataset.id)));
+  const refs = d.references || [];
+  $('st-scout').innerHTML = refs.length ? `<h2 class="st-h">Inspiration the scout looked at</h2><div class="dim-t">${refs.map((r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title || r.url)}</a>`).join(' · ')}</div>` : '';
+  renderCardsOn(); renderPreview(); renderControls();
+}
+
+function renderCardsOn() {
+  const id = studio.style.id.replace(/-custom$/, '');
+  $('st-cards').querySelectorAll('[data-id]').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  $('st-pv-mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === studio.pv));
+}
+
+const SAMPLE_ROWS = [['#1042', 'Desk lamp', 'success', 'Delivered'], ['#1043', 'Office chair, 2 units', 'warning', 'In progress'], ['#1044', 'Standing desk', 'danger', 'On hold'], ['#1045', 'Monitor arm', 'success', 'Delivered']];
+function renderPreview() {
+  const s = studio.style, p = s[studio.pv];
+  const pv = $('pv');
+  const vars = { bg: p.bg, surface: p.surface, ink: p.ink, muted: p.muted, line: p.line, accent: p.accent, accentInk: p.accentInk, head: p.heading || p.ink };
+  for (const [k, v] of Object.entries(vars)) pv.style.setProperty(`--pv-${k}`, v);
+  for (const [k, px] of Object.entries(typeSizes(s))) pv.style.setProperty(`--pv-t-${k}`, `${px}px`);
+  pv.style.setProperty('--pv-heading', `'${s.fonts.heading}'`);
+  pv.style.setProperty('--pv-body', `'${s.fonts.body}'`);
+  pv.style.setProperty('--pv-mono', `'${s.fonts.mono || 'JetBrains Mono'}'`);
+  pv.style.setProperty('--pv-r', `${s.radius}px`);
+  pv.style.setProperty('--s', densityScale(s));
+  pv.style.setProperty('--pv-dur', `${motionMs(s)}ms`);
+  pv.style.setProperty('--pv-ease', motionEase(motionMs(s)));
+  pv.style.setProperty('--pv-shadow', { none: 'none', soft: '0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.07)', hard: `4px 4px 0 ${p.ink}` }[s.shadow]);
+  const tint = (c) => `background:color-mix(in srgb, ${c} 16%, ${p.surface});color:${c}`;
+  // an accent too light for text: links take the text colour, underlined in the accent
+  pv.style.setProperty('--pv-link', contrast(p.accent, p.surface) >= 4.5 ? p.accent : p.ink);
+  pv.style.setProperty('--pv-link-line', contrast(p.accent, p.surface) >= 4.5 ? 'none' : `underline 2px ${p.accent}`);
+  $('st-pv-name').textContent = `${s.name} · ${s.fonts.heading} / ${s.fonts.body} · ${(s.type || TYPE_DEFAULT).base}px`;
+  pv.innerHTML = `<div class="pv-side"><div class="pv-logo">Northfield</div>${['Dashboard', 'Orders', 'Customers', 'Reports', 'Settings'].map((n, i) => `<span class="pv-nav${i === 1 ? ' on' : ''}">${n}</span>`).join('')}</div>`
+    + `<div class="pv-main"><div class="pv-top"><h3>Orders</h3><div style="display:flex;gap:8px"><span class="pv-btn sec">Export</span><span class="pv-btn">New order</span></div></div>`
+    + `<div class="pv-stats">${[['Open orders', '128', 'success', '+12 this week'], ['Due today', '14', 'warning', '3 at risk'], ['On hold', '5', 'danger', '2 need a reply']].map(([k, v, c, d]) => `<div class="pv-card"><div class="k">${k}</div><div class="v">${v}</div><div class="d" style="color:${p[c]}">${d}</div></div>`).join('')}</div>`
+    + `<div class="pv-card"><h4 style="margin-bottom:6px">Recent orders</h4><table class="pv-table"><tr><th>Order</th><th>Item</th><th>Status</th></tr>`
+    + SAMPLE_ROWS.map(([id, item, c, st]) => `<tr><td><a>${id}</a></td><td>${item}</td><td><span class="pv-badge" style="${tint(p[c])}">${st}</span></td></tr>`).join('') + '</table></div>'
+    + `<div class="pv-row2"><div class="pv-card"><h4>New customer</h4><label class="pv-field">Name<span class="pv-input">Alex Morgan</span></label><label class="pv-field">Company<span class="pv-input">Northfield Supplies</span></label><div style="display:flex;gap:8px;margin-top:12px"><span class="pv-btn">Save</span><span class="pv-btn sec">Cancel</span></div></div>`
+    + `<div class="pv-card"><h4>Notes</h4><div class="pv-alert" style="${tint(p.warning)};border-color:${p.warning}">Batch 7 ships late: the scanner is down.</div><div class="pv-alert" style="${tint(p.success)};border-color:${p.success}">All invoices for October are paid.</div><div style="margin-top:10px;color:${p.muted};font-size:12.5px">Reference <code>ORD-1042</code></div></div></div></div>`;
+}
+
+// a motion change replays the preview's entrance once, at the new speed
+let enterTimer = null;
+function replayEntrance() {
+  const pv = $('pv'), ms = motionMs(studio.style);
+  pv.classList.remove('enter');
+  void pv.offsetWidth; // restart the animation
+  pv.classList.add('enter');
+  clearTimeout(enterTimer);
+  enterTimer = setTimeout(() => pv.classList.remove('enter'), ms * 3.5 + 50);
+}
+
+function renderControls() {
+  const s = studio.style, p = s[studio.pv];
+  const fonts = [...new Set([...studio.all.flatMap((x) => [x.fonts.heading, x.fonts.body]), ...FONT_LIST, s.fonts.heading, s.fonts.body])].sort();
+  const fontSelect = (id, v) => `<select id="${id}">${fonts.map((f) => `<option${f === v ? ' selected' : ''}>${esc(f)}</option>`).join('')}<option value="__other">Other Google Font…</option></select>`;
+  const seg = (name, vals) => `<div class="seg" data-ctl="${name}">${vals.map((x) => `<button data-v="${x}">${x}</button>`).join('')}</div>`;
+  const t = s.type || TYPE_DEFAULT;
+  const palette = COLOUR_GROUPS.map(([g, slots]) => `<div class="st-group">${g}</div><div class="st-pal">${slots.map(([k, label]) => `<label class="st-sw"><input type="color" data-slot="${k}" value="${p[k] || p.ink}"><span>${label}<code data-hex="${k}"></code></span></label>`).join('')}</div>`).join('');
+  const restyle = studio.data.mode === 'brownfield'
+    ? (studio.apps.length
+      ? `<label>Restyle which app</label><select id="st-target">${studio.apps.map((a) => `<option value="${esc(a.dir)}"${a.dir === studio.target ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>`
+      : '<div class="dim-t">No app with a theme was found in this repo, so there is nothing to restyle yet.</div>')
+    : '';
+  $('st-controls').innerHTML = `${restyle}<div class="dim-t" id="st-reach" style="margin-top:6px"></div>`
+    + `<label>Colours (${studio.pv})</label>${palette}<button class="ghost" id="st-autoink" style="padding:2px 0;font-size:12.5px;color:var(--run)">Pick readable text on the accent</button>`
+    + `<label>Heading font</label>${fontSelect('st-fh', s.fonts.heading)}`
+    + `<label>Text font</label>${fontSelect('st-fb', s.fonts.body)}`
+    + `<label id="st-size-l"></label><input type="range" id="st-size" min="13" max="20" value="${t.base}">`
+    + `<label>Heading sizes</label><div class="seg" id="st-scale">${SCALES.map(([n, v]) => `<button data-v="${v}">${n}</button>`).join('')}</div>`
+    + `<label id="st-radius-l"></label><input type="range" id="st-radius" min="0" max="24" value="${s.radius}">`
+    + `<label id="st-density-l"></label><input type="range" id="st-density" min="0.6" max="1.4" step="0.05" value="${densityScale(s)}" list="st-density-stops">`
+    + `<datalist id="st-density-stops">${Object.values(DENSITIES).map((v) => `<option value="${v}"></option>`).join('')}</datalist>`
+    + `<label id="st-motion-l"></label><input type="range" id="st-motion" min="0" max="400" step="10" value="${motionMs(s)}"><div class="dim-t" id="st-motion-note"></div>`
+    + `<label>Shadows</label>${seg('shadow', ['none', 'soft', 'hard'])}`
+    + `<label>Readability (${studio.pv})</label><ul class="st-check" id="st-checks"></ul><div class="dim-t" id="st-linknote" style="margin-top:4px"></div>`
+    + '<button class="btn" id="st-save">Use this design</button><div class="dim-t" id="st-msg" style="margin-top:8px"></div>';
+  updateControls();
+  $('st-controls').querySelectorAll('[data-slot]').forEach((inp) => inp.addEventListener('input', () => tweak((x) => {
+    x[studio.pv][inp.dataset.slot] = inp.value;
+    if (inp.dataset.slot === 'accent') x[studio.pv].accentInk = inkOn(inp.value); // keep the button text readable
+  })));
+  $('st-autoink').addEventListener('click', () => tweak((x) => { x[studio.pv].accentInk = inkOn(x[studio.pv].accent); }));
+  const fontPick = (id, key) => $(id).addEventListener('change', (e) => {
+    let f = e.target.value;
+    if (f === '__other') {
+      f = (prompt('Google Font name, as it appears on fonts.google.com:') || '').trim();
+      if (!/^[A-Za-z0-9 ]{1,60}$/.test(f)) { renderControls(); return; }
+    }
+    tweak((x) => { x.fonts = { ...x.fonts, [key]: f }; });
+    if (e.target.value === '__other') renderControls();
+  });
+  fontPick('st-fh', 'heading');
+  fontPick('st-fb', 'body');
+  $('st-size').addEventListener('input', (e) => tweak((x) => { x.type = { ...(x.type || TYPE_DEFAULT), base: Number(e.target.value) }; }));
+  $('st-scale').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => tweak((x) => { x.type = { ...(x.type || TYPE_DEFAULT), scale: Number(b.dataset.v) }; })));
+  $('st-radius').addEventListener('input', (e) => tweak((x) => { x.radius = Number(e.target.value); }));
+  // a spacing on a named stop keeps its name, so the named styles still mean the same thing
+  $('st-density').addEventListener('input', (e) => tweak((x) => {
+    const v = Number(e.target.value);
+    x.density = Object.keys(DENSITIES).find((k) => Math.abs(DENSITIES[k] - v) < 0.001) || v;
+  }));
+  $('st-motion').addEventListener('input', (e) => tweak((x) => { x.motion = Number(e.target.value); }));
+  $('st-motion').addEventListener('change', replayEntrance);
+  $('st-controls').querySelectorAll('[data-ctl]').forEach((g) => g.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => tweak((x) => { x[g.dataset.ctl] = b.dataset.v; }))));
+  $('st-save').addEventListener('click', saveDesign);
+  if ($('st-target')) $('st-target').addEventListener('change', (e) => { studio.target = e.target.value; showReach(); });
+  showReach();
+  if (studio.data.mode === 'brownfield' && !studio.apps.length) $('st-save').disabled = true;
+}
+
+// What a theme restyle reaches in the chosen app, before anyone saves.
+function showReach() {
+  const box = $('st-reach');
+  const a = studio.apps.find((x) => x.dir === studio.target);
+  if (!box || !a) { if (box) box.textContent = ''; return; }
+  const h = a.hardcoded;
+  box.innerHTML = `Changes ${a.files.map((f) => `<code>${esc(f.split('/').slice(-2).join('/'))}</code>`).join(', ')}.`
+    + (h && h.files ? ` <b style="color:var(--ink)">${h.files} files set their own colours</b> (${h.uses.toLocaleString()} places), so those parts keep today's look. Restyling them is screen-by-screen work.` : ' Its screens use the theme, so the whole app follows.');
+}
+
+// The parts of the controls that follow a tweak, without re-drawing an input mid-drag.
+function updateControls() {
+  const s = studio.style, p = s[studio.pv], t = s.type || TYPE_DEFAULT;
+  $('st-controls').querySelectorAll('[data-hex]').forEach((c) => { c.textContent = p[c.dataset.hex] || `${p.ink} (text)`; });
+  $('st-controls').querySelectorAll('[data-slot]').forEach((inp) => { const v = p[inp.dataset.slot] || p.ink; if (inp.value !== v) inp.value = v; });
+  $('st-size-l').textContent = `Text size: ${t.base}px (headings up to ${Math.round(typeSizes(s)['2xl'])}px)`;
+  $('st-scale').querySelectorAll('button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.v) - t.scale) < 0.01));
+  $('st-radius-l').textContent = `Corners: ${s.radius}px`;
+  const d = densityScale(s), ms = motionMs(s);
+  $('st-density-l').textContent = `Spacing: ${typeof s.density === 'string' ? `${s.density} (${d}×)` : `${d}×`}`;
+  $('st-motion-l').textContent = `Motion: ${ms === 0 ? 'none' : ms < LIVELY_MS ? 'smooth' : 'lively'} (${ms}ms)`;
+  $('st-motion-note').textContent = reducedMotion.matches
+    ? 'Your system asks for less motion, so the preview stays still. The built app does the same for anyone who asks.'
+    : 'Hover the buttons, menu and rows to feel it. The built app stays still for anyone whose system asks for less motion.';
+  $('st-controls').querySelectorAll('[data-ctl]').forEach((g) => g.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === s[g.dataset.ctl])));
+  $('st-checks').innerHTML = [['Text on background', p.ink, p.bg], ['Headings on background', p.heading || p.ink, p.bg], ['Quiet text on cards', p.muted, p.surface], ['Button text', p.accentInk, p.accent], ['Links on cards', p.accent, p.surface]]
+    .map(([n, a, b]) => { const r = contrast(a, b); return `<li><span>${n}</span><span class="${r >= 4.5 ? 'ok' : 'low'}">${r.toFixed(1)}${r >= 4.5 ? ' ✓' : ' low'}</span></li>`; }).join('');
+  $('st-linknote').textContent = contrast(p.accent, p.surface) < 4.5 ? 'The accent is too light to use as text here, so links and small labels should use the text colour instead. It is fine as a fill behind its button text.' : '';
+  $('st-save').disabled = studio.data.mode === 'brownfield' && !studio.apps.length;
+}
+
+async function saveDesign() {
+  $('st-save').disabled = true;
+  const style = clone(studio.style);
+  delete style.from;
+  try {
+    const res = await fetch('/design', { method: 'POST', headers: { 'content-type': 'application/json', 'x-framed': 'studio' }, body: JSON.stringify({ style, preview: studio.pv, target: studio.target }) });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'could not save');
+    await loadStudio();
+    $('st-msg').textContent = 'Saved. Now say "build my design" in Claude Code.';
+  } catch (e) {
+    $('st-msg').textContent = `Not saved: ${e.message}`;
+    $('st-save').disabled = false;
+  }
+}
+
+$('st-pv-mode').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { if (!studio) return; studio.pv = b.dataset.v; renderStudio(); }));
+
+// Refresh looks: start the design scout, then follow it until its looks land.
+let scoutTimer = null;
+function showScout(j) {
+  const note = $('st-scout-note'), btn = $('st-refresh');
+  const secs = j.startedAt ? Math.round(((j.endedAt ? Date.parse(j.endedAt) : Date.now()) - Date.parse(j.startedAt)) / 1000) : 0;
+  btn.disabled = j.state === 'running';
+  note.className = `note${j.state === 'running' ? ' run' : ''}`;
+  if (j.state === 'running') note.textContent = `The design scout is working${j.brief ? ` on "${j.brief}"` : ''}… ${secs}s`;
+  else if (j.state === 'done') note.textContent = `New looks are in, at the front of the styles (${secs}s). ${j.message || ''}`;
+  else if (j.state === 'failed') note.textContent = `The design scout didn't finish: ${j.message || 'no reason given'}. You can also ask in Claude Code: "find more designs".`;
+}
+async function followScout() {
+  clearTimeout(scoutTimer);
+  let j;
+  try { j = await (await fetch('/scout', { cache: 'no-store' })).json(); } catch { return; }
+  if (j.state === 'idle') return;
+  showScout(j);
+  if (j.state === 'running') { scoutTimer = setTimeout(followScout, 2000); return; }
+  if (j.state === 'done' && studio && j.endedAt !== studio.scoutSeen) { studio.scoutSeen = j.endedAt; loadStudio(); }
+}
+$('st-refresh').addEventListener('click', async () => {
+  $('st-refresh').disabled = true;
+  try {
+    const res = await fetch('/scout', { method: 'POST', headers: { 'content-type': 'application/json', 'x-framed': 'studio' }, body: JSON.stringify({ brief: $('st-brief').value }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'could not start');
+    showScout(j);
+    followScout();
+  } catch (e) {
+    $('st-scout-note').textContent = `Couldn't start the design scout: ${e.message}.`;
+    $('st-refresh').disabled = false;
+  }
+});
+
+// ---- pages: #/home, #/build, #/map, #/files, #/studio, #/help
+const PAGES = ['home', 'build', 'map', 'files', 'studio', 'help'];
+let page = null;
+function route() {
+  const m = location.hash.match(/^#\/(\w+)(?:\?(.*))?$/);
+  const next = m && PAGES.includes(m[1]) ? m[1] : 'home';
+  for (const p of PAGES) $(`page-${p}`).classList.toggle('on', p === next);
+  document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('on', a.dataset.page === next));
+  if (next !== page) scrollTo(0, 0);
+  page = next;
+  if (next === 'files') {
+    const q = new URLSearchParams((m && m[2]) || '');
+    filesView = q.get('module') ? { kind: 'module', name: q.get('module') } : q.get('file') ? { kind: 'file', path: q.get('file') } : null;
+    if (filesView && filesView.kind === 'module') selected = filesView.name;
+    if (!filesView) { selected = null; filesDepth = 0; }
+    renderFilesMods();
+    showDrawer();
+  }
+  if (next === 'studio') { loadStudio(); followScout(); }
+  if (next === 'help') {
+    const s = new URLSearchParams((m && m[2]) || '').get('s');
+    if (s && $(`help-${s}`)) helpGo(s);
+  }
+}
+addEventListener('hashchange', route);
+
+// ---- help: #/help?s=<section> links straight to a section; the contents follow the reading
+function helpGo(s) {
+  const sec = $(`help-${s}`);
+  if (sec.hidden) { $('help-find').value = ''; helpFilter(); }
+  helpHold = Date.now() + 900;
+  sec.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  helpMark(s);
+}
+function helpMark(s) {
+  const toc = $('help-toc');
+  toc.querySelectorAll('a').forEach((a) => a.classList.toggle('on', a.dataset.s === s));
+  // on a phone the contents are one row: slide the current one into view
+  const on = toc.querySelector('a.on');
+  if (on && toc.scrollWidth > toc.clientWidth) toc.scrollTo({ left: on.offsetLeft - (toc.clientWidth - on.offsetWidth) / 2 });
+}
+// a link to the section already in the address doesn't fire hashchange, so the contents scroll themselves
+$('help-toc').querySelectorAll('a').forEach((a) => a.addEventListener('click', (e) => {
+  e.preventDefault();
+  history.replaceState(null, '', a.getAttribute('href'));
+  helpGo(a.dataset.s);
+}));
+const helpSecs = [...document.querySelectorAll('.help-sec')];
+// the section being read: the last one whose top has passed the top of the screen (the last one
+// on screen at the very bottom). A jump holds its choice while the page scrolls to it.
+let helpHold = 0;
+addEventListener('scroll', () => {
+  if (page !== 'help' || Date.now() < helpHold) return;
+  const shown = helpSecs.filter((s) => !s.hidden);
+  if (!shown.length) return;
+  const line = innerWidth <= 820 ? 130 : 40;
+  let cur = shown[0];
+  for (const s of shown) if (s.getBoundingClientRect().top <= line) cur = s;
+  if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) cur = shown.filter((s) => s.getBoundingClientRect().top < innerHeight).pop() || cur;
+  helpMark(cur.id.replace(/^help-/, ''));
+}, { passive: true });
+// find: keep the sections (and contents links) that mention every word typed
+function helpFilter() {
+  const words = $('help-find').value.toLowerCase().split(/\s+/).filter(Boolean);
+  let shown = 0;
+  for (const sec of helpSecs) {
+    const hit = words.every((w) => sec.textContent.toLowerCase().includes(w));
+    sec.hidden = !hit;
+    $('help-toc').querySelector(`[data-s="${sec.id.replace(/^help-/, '')}"]`).hidden = !hit;
+    if (hit) shown += 1;
+  }
+  $('help-none').hidden = shown > 0;
+}
+$('help-find').addEventListener('input', helpFilter);
+
+function renderHome(s) {
+  const repo = s.repo || {};
+  $('home-title').textContent = repo.name || 'framed';
+  $('home-line').textContent = s.line ? s.line[0].toUpperCase() + s.line.slice(1) : '';
+  const task = s.task;
+  const cards = [];
+  if (task) {
+    const t = task.tokens && task.tokens.available ? task.tokens.total : null;
+    const road = task.road.map((x, i) => `${i ? `<b class="${x.status === 'todo' ? '' : task.road[i - 1].status === 'done' ? 'done' : ''}"></b>` : ''}<i class="${x.status}" title="${esc(STOPS[x.key].name)}: ${esc(x.status)}"></i>`).join('');
+    cards.push(`<a class="card home-card" href="#/build"><h2>Current fix</h2><div style="font-weight:650;font-size:16px">${esc(task.title || task.ticket)}</div>`
+      + `<div class="meta" style="margin-top:6px">${$('meta').innerHTML}</div><div class="minroad">${road}</div>`
+      + `<div class="dim-t">${t ? `${fmt(t.fresh + t.cached)} tokens${task.status === 'done' ? '' : ' so far'}` : 'tokens not available'}</div></a>`);
+  } else {
+    cards.push(`<a class="card home-card" href="#/build"><h2>Current fix</h2><div style="font-weight:650">None on this branch</div><div class="dim-t" style="margin-top:4px">${esc(s.line || '')}</div></a>`);
+  }
+  if (s.map) {
+    const mods = s.map.modules.filter((m) => !m.other);
+    cards.push(`<a class="card home-card" href="#/map"><h2>Map</h2><div class="big">${mods.length} <span style="font-size:15px;font-weight:600;color:var(--muted)">modules</span></div>`
+      + `<div class="dim-t">${mods.reduce((n, m) => n + m.files, 0).toLocaleString()} source files · ${s.map.links.length} links${repo.mapDate ? ` · built ${esc(repo.mapDate)}` : ''}</div>`
+      + `<div class="dim-t" style="margin-top:8px">${esc((s.map.what || '').split('. ')[0])}${s.map.what ? '.' : ''}</div></a>`);
+    cards.push(`<a class="card home-card" href="#/files"><h2>Files</h2><div style="font-weight:650">Browse modules and files</div>`
+      + `<div class="dim-t" style="margin-top:4px">${task && s.map.touched.length ? `This fix changes ${s.map.touched.length} module${s.map.touched.length > 1 ? 's' : ''}${s.map.reached.length ? ` and may affect ${s.map.reached.length}` : ''}.` : 'See what each file uses and what uses it.'}</div></a>`);
+  }
+  cards.push(usageCard(s));
+  cards.push(`<div class="card home-card"><h2>This repo</h2><div class="dim-t">Branch <code>${esc(s.branch || '')}</code></div>`
+    + (repo.ticketPrefixes ? `<div class="dim-t">Tickets: ${repo.ticketPrefixes.map((p) => (p === '#' ? 'numbered' : esc(p))).join(', ')}</div>` : '')
+    + (repo.unitTests !== undefined ? `<div class="dim-t">Unit test suites: ${repo.unitTests}</div>` : '') + '</div>');
+  $('home').innerHTML = cards.join('');
+}
+
+// Context left and plan usage, from framed's status line (the only place Claude Code gives them)
+const resetIn = (iso) => {
+  if (!iso) return '';
+  const m = Math.round((Date.parse(iso) - Date.now()) / 60000);
+  return m <= 0 ? '' : m < 60 ? `, resets in ${m} min` : m < 48 * 60 ? `, resets in ${Math.round(m / 60)} h` : `, resets in ${Math.round(m / 1440)} days`;
+};
+function usageLine(u) {
+  if (!u) return '';
+  return [u.contextLeftPct != null && `context ${u.contextLeftPct}% left`, u.fiveHour && `5-hour limit ${u.fiveHour.usedPct}% used`, u.week && `week ${u.week.usedPct}% used`].filter(Boolean).join(' · ');
+}
+function usageCard(s) {
+  const u = s.usage;
+  if (!u) {
+    return `<div class="card home-card"><h2>Claude usage</h2><div class="dim-t">${s.statusLine
+      ? 'Shows after your next message in Claude Code.'
+      : 'To see context left and your 5-hour and weekly limits here, ask Claude: <b>"show framed\'s status line"</b>. It adds one line to your own Claude Code settings.'}</div></div>`;
+  }
+  const bar = (pct, cls) => `<div style="height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0 8px"><div style="height:100%;width:${Math.max(0, Math.min(100, pct))}%;background:var(${cls})"></div></div>`;
+  const tone = (used) => (used >= 85 ? '--bad' : used >= 60 ? '--wait' : '--done');
+  return '<div class="card home-card"><h2>Claude usage</h2>'
+    + (u.contextLeftPct != null ? `<div class="dim-t">Context left in this session: <b style="color:var(--ink)">${u.contextLeftPct}%</b></div>${bar(u.contextLeftPct, u.contextLeftPct <= 15 ? '--bad' : u.contextLeftPct <= 40 ? '--wait' : '--run')}` : '')
+    + (u.fiveHour ? `<div class="dim-t">5-hour limit: <b style="color:var(--ink)">${u.fiveHour.usedPct}% used</b>${resetIn(u.fiveHour.resetsAt)}</div>${bar(u.fiveHour.usedPct, tone(u.fiveHour.usedPct))}` : '')
+    + (u.week ? `<div class="dim-t">Weekly limit: <b style="color:var(--ink)">${u.week.usedPct}% used</b>${resetIn(u.week.resetsAt)}</div>${bar(u.week.usedPct, tone(u.week.usedPct))}` : '')
+    + (!u.fiveHour && !u.week ? '<div class="dim-t">Plan limits show for Pro and Max plans only.</div>' : '')
+    + `<div class="xs" style="color:var(--muted);font-size:12px">as of ${esc(new Date(u.at).toLocaleTimeString())}</div></div>`;
+}
+
+function renderNav(s) {
+  $('nav-repo').textContent = (s.repo && s.repo.name) || '';
+  $('nav-foot').innerHTML = `<span class="live"></span>live · <code>${esc(s.branch || '')}</code>`;
+  const task = s.task;
+  const cur = task && task.road.find((x) => !['done', 'skipped'].includes(x.status));
+  $('nav-build-dot').className = `badge-dot ${!task ? '' : task.status === 'done' ? 'done' : cur && cur.status === 'waiting' ? 'wait' : cur && ['stopped', 'failed'].includes(cur.status) ? 'bad' : 'run'}`;
+}
+
+function renderMap(map) {
+  $('map-card').hidden = !map;
+  if (!map) return;
+  lastMap = map;
+  const key = JSON.stringify([map.modules.map((m) => [m.name, m.files]), map.links.map((l) => [l.from, l.to, l.strength])]);
+  if (key !== mapKey) { mapKey = key; drawMap(map); }
+  $('map-sub').textContent = `${map.modules.filter((m) => !m.other).length} modules, ${map.links.length} links, from .framed/map.md`;
+  const langs = [...new Set(map.modules.map(langOf).filter((l) => LANG_COLOR[l]))];
+  $('legend').innerHTML = langs.map((l) => `<span><i style="border-color:${LANG_COLOR[l]};background:color-mix(in srgb, ${LANG_COLOR[l]} 16%, var(--panel))"></i>${esc(l)}</span>`).join('')
+    + '<span><span class="ln"></span>imports</span><span><span class="ln dash"></span>changed together</span><a class="help-link" href="#/help?s=map">How to read the map</a>';
+  $('map-foot').innerHTML = [map.what && esc(map.what), map.surprising && inline(map.surprising),
+    !map.scan && 'The glow for a task needs the scan on this machine: run <code>framed map scan</code>.'].filter(Boolean).map((s) => `<p style="margin:0 0 6px">${s}</p>`).join('');
+  highlightMap(map);
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/state', { cache: 'no-store' });
+    const json = await res.text();
+    $('offline').style.display = 'none';
+    // a server older than this page sends no "stale" field at all
+    $('stale').style.display = /"stale":false/.test(json) ? 'none' : 'block';
+    if (json !== lastJson) {
+      lastJson = json;
+      const s = JSON.parse(json);
+      if (s.error) throw new Error(s.error);
+      lastState = s;
+      renderHeader(s);
+      renderRoad(s.task);
+      $('grid').hidden = !s.task;
+      if (s.task) renderPanels(s.task);
+      renderMap(s.map);
+      $('map-none').hidden = !!s.map;
+      renderHome(s);
+      renderNav(s);
+      if (page === 'files') { renderFilesMods(); showDrawer(); } // a step landed: the task's files may have changed
+      $('foot-left').textContent = s.root || '';
+    }
+  } catch {
+    $('offline').style.display = 'block';
+  }
+  setTimeout(poll, 2000);
+}
+
+drawStatic();
+route(); // show the page now; the first poll fills it in
+poll();
+</script>
+</body>
+</html>
